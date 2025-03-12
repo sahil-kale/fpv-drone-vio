@@ -1,0 +1,4 @@
+platformio
+numpy
+matplotlib
+scipy
