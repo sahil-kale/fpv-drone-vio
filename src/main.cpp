@@ -9,7 +9,7 @@
 #define I2S_NUM (0)
 #define I2S_PDM_CLK_GPIO ((gpio_num_t)9U)
 #define I2S_PDM_DATA0_GPIO ((gpio_num_t)10U)
-#define I2S_PDM_DATA1_GPIO ((gpio_num_t)11U)
+#define I2S_PDM_DATA1_GPIO ((gpio_num_t)19U)
 #define I2S_PDM_DATA2_GPIO ((gpio_num_t)12U)
 #define I2S_PDM_DATA3_GPIO ((gpio_num_t)13U)
 
@@ -31,6 +31,8 @@ constexpr static i2s_pdm_rx_gpio_config_t I2S_PDM_GPIO_CFG = {
     },
 };
 
+constexpr static size_t NUM_PDM_DIN = sizeof(I2S_PDM_GPIO_CFG.dins) / sizeof(I2S_PDM_GPIO_CFG.dins[0]);
+
 #define I2S_DATA_BUF_SIZE (2048 * 8)
 static int16_t I2S_DATA_BUF[I2S_DATA_BUF_SIZE] = {0};
 constexpr size_t I2S_DATA_BUF_SIZE_BYTES = sizeof(I2S_DATA_BUF);
@@ -48,6 +50,27 @@ void init_i2s_pdm(void)
         .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = I2S_PDM_GPIO_CFG,
     };
+
+#if 0
+    pdm_rx_cfg.slot_cfg.slot_mask = I2S_PDM_SLOT_BOTH;
+
+    switch (NUM_PDM_DIN) {
+        case 1:
+            break;
+        case 2:
+            pdm_rx_cfg.slot_cfg.slot_mask = (i2s_pdm_slot_mask_t)(I2S_PDM_RX_LINE1_SLOT_RIGHT | I2S_PDM_RX_LINE1_SLOT_LEFT | I2S_PDM_SLOT_BOTH);
+            break;
+        case 3:
+            pdm_rx_cfg.slot_cfg.slot_mask = (i2s_pdm_slot_mask_t)(I2S_PDM_RX_LINE2_SLOT_RIGHT | I2S_PDM_RX_LINE2_SLOT_LEFT | I2S_PDM_RX_LINE1_SLOT_RIGHT | I2S_PDM_RX_LINE1_SLOT_LEFT | I2S_PDM_SLOT_BOTH);
+            break;
+        case 4:
+            pdm_rx_cfg.slot_cfg.slot_mask = (i2s_pdm_slot_mask_t)I2S_PDM_LINE_SLOT_ALL;
+            break;
+        default:
+            ESP_LOGE(TAG, "Invalid number of PDM data input GPIOs");
+            return;
+    }
+    #endif
 
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_chan, &pdm_rx_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_chan));
@@ -86,7 +109,7 @@ extern "C" void app_main() {
 
     // Apply configuration to UART0
     uart_param_config(MAIN_COMM_UART_NUM, &uart_config);
-    uart_driver_install(MAIN_COMM_UART_NUM, I2S_DATA_BUF_SIZE_BYTES * 2, 0, 0, NULL, 0);
+    uart_driver_install(MAIN_COMM_UART_NUM, I2S_DATA_BUF_SIZE_BYTES * 3, 0, 0, NULL, 0);
 
 
     xTaskCreate(i2s_pdm_task, "I2S PDM Task", 4096, NULL, 1, NULL);

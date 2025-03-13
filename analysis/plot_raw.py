@@ -5,7 +5,6 @@ import argparse
 import wave
 import os
 
-
 def plot_single_mic(time_vec, pcm_data, channel):
     """Plot single microphone data for a specific channel."""
     plt.figure(figsize=(12, 6))
@@ -17,30 +16,45 @@ def plot_single_mic(time_vec, pcm_data, channel):
     plt.legend()
     plt.show()
 
-
 def plot_all_mics(time_vec, pcm_data):
+    """Plot all microphone channels as subplots."""
+    num_channels = pcm_data.shape[1]
+    fig, axes = plt.subplots(num_channels, 1, figsize=(12, 6 * num_channels), sharex=True)
+    fig.suptitle("All Microphone Channels")
+    
+    for channel in range(num_channels):
+        axes[channel].plot(time_vec, pcm_data[:, channel], label=f"Channel {channel}")
+        axes[channel].set_ylabel("Amplitude")
+        axes[channel].grid()
+        axes[channel].legend()
+    
+    axes[-1].set_xlabel("Time (s)")
+    plt.show()
+
+def plot_combined(time_vec, pcm_data):
     """Plot all microphone channels in a single figure."""
     plt.figure(figsize=(12, 6))
     for channel in range(pcm_data.shape[1]):
         plt.plot(time_vec, pcm_data[:, channel], label=f"Channel {channel}")
-    plt.title("All Microphone Channels")
+    plt.title("All Microphone Channels Combined")
     plt.xlabel("Time (s)")
     plt.ylabel("Amplitude")
     plt.grid()
     plt.legend()
     plt.show()
 
-
 def get_multi_mic_data(filename):
     """Read and decode multi-channel microphone data from a raw file."""
     with open(filename, "rb") as f:
         raw_data = f.read()
         pcm_data = np.frombuffer(raw_data, dtype=np.int16)
-        pcm_data = pcm_data.reshape(-1, NUM_CHANNELS) 
+        # trim the data to the nearest multiple of NUM_CHANNELS
+        num_samples = len(pcm_data) // NUM_CHANNELS * NUM_CHANNELS
+        pcm_data = pcm_data[:num_samples].reshape(-1, NUM_CHANNELS)
+
         sample_rate = SAMPLE_RATE_PCM_HZ
         time_vec = np.arange(pcm_data.shape[0]) / sample_rate
         return time_vec, pcm_data, sample_rate
-
 
 def save_as_wav(filename, pcm_data, sample_rate):
     """Save PCM data as NUM_CHANNELS separate WAV files, one per channel."""
@@ -65,12 +79,12 @@ def save_as_wav(filename, pcm_data, sample_rate):
         
         print(f"Saved WAV file: {wav_filename}")
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot multi-channel microphone data from a raw file.")
     parser.add_argument("filename", type=str, help="Path to the raw file")
     parser.add_argument("--plot", type=int, default=None, help="Plot data for a specific channel (0-7)")
-    parser.add_argument("--plot-all", action="store_true", help="Plot all channels in one figure")
+    parser.add_argument("--plot-all", action="store_true", help="Plot all channels as subplots")
+    parser.add_argument("--plot-combined", action="store_true", help="Plot all channels in one figure")
     parser.add_argument("--generate-wav", action="store_true", help="Save each channel as a separate WAV file")
     args = parser.parse_args()
     filename = args.filename
@@ -85,5 +99,7 @@ if __name__ == "__main__":
             raise ValueError("Channel must be between 0 and 7")
     if args.plot_all:
         plot_all_mics(time_vec, pcm_data)
+    if args.plot_combined:
+        plot_combined(time_vec, pcm_data)
     if args.generate_wav:
         save_as_wav(filename, pcm_data, sample_rate)
