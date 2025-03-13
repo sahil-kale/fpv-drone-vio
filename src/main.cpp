@@ -7,8 +7,11 @@
 #define TAG "MAIN"
 
 #define I2S_NUM (0)
-#define I2S_PDM_CLK_GPIO ((gpio_num_t)10U)
-#define I2S_PDM_DATA0_GPIO ((gpio_num_t)11U)
+#define I2S_PDM_CLK_GPIO ((gpio_num_t)9U)
+#define I2S_PDM_DATA0_GPIO ((gpio_num_t)10U)
+#define I2S_PDM_DATA1_GPIO ((gpio_num_t)11U)
+#define I2S_PDM_DATA2_GPIO ((gpio_num_t)12U)
+#define I2S_PDM_DATA3_GPIO ((gpio_num_t)13U)
 
 #define PDM_RX_FREQ_HZ (16000) // PDM clock frequency
 
@@ -19,13 +22,16 @@ constexpr static i2s_pdm_rx_gpio_config_t I2S_PDM_GPIO_CFG = {
     .clk = I2S_PDM_CLK_GPIO,
     .dins = {
         I2S_PDM_DATA0_GPIO,
+        //I2S_PDM_DATA1_GPIO,
+        //I2S_PDM_DATA2_GPIO,
+        //I2S_PDM_DATA3_GPIO,
     },
     .invert_flags = {
         .clk_inv = false,
     },
 };
 
-#define I2S_DATA_BUF_SIZE (2048)
+#define I2S_DATA_BUF_SIZE (2048 * 8)
 static int16_t I2S_DATA_BUF[I2S_DATA_BUF_SIZE] = {0};
 constexpr size_t I2S_DATA_BUF_SIZE_BYTES = sizeof(I2S_DATA_BUF);
 
@@ -33,33 +39,18 @@ constexpr size_t I2S_DATA_BUF_SIZE_BYTES = sizeof(I2S_DATA_BUF);
 
 void init_i2s_pdm(void)
 {
-#if SOC_I2S_SUPPORTS_PDM2PCM
-    ESP_LOGI(TAG, "I2S PDM RX example (receiving data in PCM format)");
-#else
-    ESP_LOGI(TAG, "I2S PDM RX example (receiving data in raw PDM format)");
-#endif  // SOC_I2S_SUPPORTS_PDM2PCM
     ESP_ERROR_CHECK(i2s_new_channel(&rx_chan_cfg, NULL, &rx_chan));
 
     i2s_pdm_rx_config_t pdm_rx_cfg = {
         .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(PDM_RX_FREQ_HZ),
         /* The data bit-width of PDM mode is fixed to 16 */
-#if SOC_I2S_SUPPORTS_PDM2PCM
-        .slot_cfg = I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
-#else
         // For the target that not support PDM-to-PCM format, we can only receive RAW PDM data format
-        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
-#endif  // SOC_I2S_SUPPORTS_PDM2PCM
+        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = I2S_PDM_GPIO_CFG,
     };
 
-    // TODO: slot omde should be stereo, and slot mask should be all
-    pdm_rx_cfg.slot_cfg.slot_mode = I2S_SLOT_MODE_MONO;
-    pdm_rx_cfg.slot_cfg.slot_mask = I2S_PDM_SLOT_LEFT;
-
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_chan, &pdm_rx_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_chan));
-
-
 }
 
 void i2s_pdm_task(void *pvParameter)
@@ -73,6 +64,7 @@ void i2s_pdm_task(void *pvParameter)
             for (size_t i = 0; i < r_bytes / sizeof(int16_t); i++) {
                 uart_write_bytes(MAIN_COMM_UART_NUM, (const char *)&r_buf[i], sizeof(int16_t));
             }
+            //ESP_LOGI(TAG, "Received %d bytes", r_bytes);
         } else {
             ESP_LOGW(TAG, "No data received within timeout");
         }

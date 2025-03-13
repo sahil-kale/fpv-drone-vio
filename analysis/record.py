@@ -8,7 +8,7 @@ from constants import *
 def create_log_file():
     """Creates a log file with the appropriate naming convention."""
     os.makedirs(LOG_DIR, exist_ok=True)
-    timestamp = int(time.time())
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     filename = f"AUDIO_RECORD_{timestamp}.raw"
     filepath = os.path.join(LOG_DIR, filename)
     return open(filepath, "wb")
@@ -27,10 +27,8 @@ def read_serial(port):
                 
                 print(f"Read {len(data)} bytes from {port}")
                 
-                # Decode and log (do we really need to decode?)
-                decoded_samples = struct.iter_unpack(decode_struct_str, data)
-                for sample in decoded_samples:
-                    log_file.write(struct.pack(decode_struct_str, sample[0]))
+                # write to log file
+                log_file.write(data)
     
     except serial.SerialException as e:
         print(f"Error: {e}")
