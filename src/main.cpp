@@ -22,7 +22,7 @@ constexpr static i2s_pdm_rx_gpio_config_t I2S_PDM_GPIO_CFG = {
     .clk = I2S_PDM_CLK_GPIO,
     .dins = {
         I2S_PDM_DATA0_GPIO,
-        //I2S_PDM_DATA1_GPIO,
+        I2S_PDM_DATA1_GPIO,
         //I2S_PDM_DATA2_GPIO,
         //I2S_PDM_DATA3_GPIO,
     },
@@ -50,6 +50,9 @@ void init_i2s_pdm(void)
         .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = I2S_PDM_GPIO_CFG,
     };
+
+    pdm_rx_cfg.slot_cfg.slot_mode = I2S_SLOT_MODE_STEREO;
+    pdm_rx_cfg.slot_cfg.slot_mask = static_cast<i2s_pdm_slot_mask_t>(BIT(0) | BIT(1) | BIT(2) | BIT(3));
 
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_chan, &pdm_rx_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_chan));
