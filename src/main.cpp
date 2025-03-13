@@ -15,7 +15,21 @@
 static i2s_chan_handle_t rx_chan; 
 static i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
 
-static int16_t I2S_DATA_BUF[2048] = {0};
+constexpr static i2s_pdm_rx_gpio_config_t I2S_PDM_GPIO_CFG = {
+    .clk = I2S_PDM_CLK_GPIO,
+    .dins = {
+        I2S_PDM_DATA0_GPIO,
+    },
+    .invert_flags = {
+        .clk_inv = false,
+    },
+};
+
+#define I2S_DATA_BUF_SIZE (2048)
+static int16_t I2S_DATA_BUF[I2S_DATA_BUF_SIZE] = {0};
+constexpr size_t I2S_DATA_BUF_SIZE_BYTES = sizeof(I2S_DATA_BUF);
+
+#define MAIN_COMM_UART_NUM UART_NUM_0
 
 void init_i2s_pdm(void)
 {
@@ -35,22 +49,7 @@ void init_i2s_pdm(void)
         // For the target that not support PDM-to-PCM format, we can only receive RAW PDM data format
         .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
 #endif  // SOC_I2S_SUPPORTS_PDM2PCM
-        .gpio_cfg = {
-            .clk = I2S_PDM_CLK_GPIO,
-#if SOC_I2S_PDM_MAX_RX_LINES == 4
-            .dins = {
-                I2S_PDM_DATA0_GPIO
-                //EXAMPLE_PDM_RX_DIN1_IO,
-                //EXAMPLE_PDM_RX_DIN2_IO,
-                //EXAMPLE_PDM_RX_DIN3_IO,
-            },
-#else
-            #error "Shouldn't be in here..."
-#endif
-            .invert_flags = {
-                .clk_inv = false,
-            },
-        },
+        .gpio_cfg = I2S_PDM_GPIO_CFG,
     };
 
     // TODO: slot omde should be stereo, and slot mask should be all
@@ -70,21 +69,13 @@ void i2s_pdm_task(void *pvParameter)
         size_t r_bytes = 0;
         if (i2s_channel_read(rx_chan, I2S_DATA_BUF, sizeof(I2S_DATA_BUF), &r_bytes, 1000) == ESP_OK) {
             int16_t *r_buf = (int16_t *)I2S_DATA_BUF;
-            // Successfully received data
-            printf("Read Task: i2s read %d bytes\n-----------------------------------\n", r_bytes);
-            printf("[0] %d [1] %d [2] %d [3] %d\n[4] %d [5] %d [6] %d [7] %d\n\n",
-                   r_buf[0], r_buf[1], r_buf[2], r_buf[3], r_buf[4], r_buf[5], r_buf[6], r_buf[7]);
-            // Process the received data here
+            // just blast the data to UART
+            for (size_t i = 0; i < r_bytes / sizeof(int16_t); i++) {
+                uart_write_bytes(MAIN_COMM_UART_NUM, (const char *)&r_buf[i], sizeof(int16_t));
+            }
         } else {
             ESP_LOGW(TAG, "No data received within timeout");
         }
-    }
-}
-
-void blinkTask(void *pvParameter) {
-    while (1) {
-        ESP_LOGI(TAG, "ESP-IDF Running!");
-        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -102,9 +93,9 @@ extern "C" void app_main() {
     };
 
     // Apply configuration to UART0
-    uart_param_config(UART_NUM_0, &uart_config);
-    uart_driver_install(UART_NUM_0, 1024, 0, 0, NULL, 0);
+    uart_param_config(MAIN_COMM_UART_NUM, &uart_config);
+    uart_driver_install(MAIN_COMM_UART_NUM, I2S_DATA_BUF_SIZE_BYTES * 2, 0, 0, NULL, 0);
 
-    xTaskCreate(blinkTask, "Blink Task", 2048, NULL, 2, NULL);
+
     xTaskCreate(i2s_pdm_task, "I2S PDM Task", 4096, NULL, 1, NULL);
 }
