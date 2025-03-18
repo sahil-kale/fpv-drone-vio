@@ -1,5 +1,0 @@
-platformio
-numpy
-matplotlib
-scipy
-pyserial
