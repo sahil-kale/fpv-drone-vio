@@ -178,4 +178,5 @@ mte-546-proj-venv/
 build/
 .pio/
 logs/
+*Zone.Identifier
 dataset/
