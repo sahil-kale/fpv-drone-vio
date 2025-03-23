@@ -1,0 +1,24 @@
+from pathlib import Path
+import numpy as np
+
+
+
+
+#   Goal: 
+#   Take in IMU Data for system dynamics prediction
+#   Steps:
+#       - Take in IMU data from dataset
+#       - Use changes in ang and lin for system dynamics
+#       - Spit out new states for each time step
+
+#   States:
+#   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
+
+
+
+
+
+
+
+
+
