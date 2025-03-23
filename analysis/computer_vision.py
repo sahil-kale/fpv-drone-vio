@@ -100,6 +100,52 @@ class FLANNMatcher(FeatureMatcher):
         matches = self.flann.knnMatch(left_descriptors, right_descriptors, k=2)
         return matches
 
+#Filter matches to remove outliers
+class FeatureMatchFilter(ABC):
+    """
+    Abstract class for feature match filtering
+    """
+    @abstractmethod
+    def filter_matches(self, matches):
+        """
+        Take matches and return filtered matches
+        """
+        pass
+
+class RatioTestFilter(FeatureMatchFilter):
+    """
+    Filter matches using Lowe's ratio test
+    """
+
+    def __init__(self, ratio=0.75):
+        self.ratio = ratio
+    
+    def filter_matches(self, matches):
+        filtered_matches = []
+        for m, n in matches:
+            if m.distance < self.ratio * n.distance:
+                filtered_matches.append(m)
+        return filtered_matches
+
+class RANSACFilter(FeatureMatchFilter):
+    """
+    Filter matches using RANSAC (Random Sample Consensus) algorithm
+    """
+    def __init__(self, min_matches=8, reproj_thresh=4.0):
+        self.min_matches = min_matches
+        self.reproj_thresh = reproj_thresh
+        self.ransac = cv2.RANSACReprojectionSolver(reproj_thresh, min_matches)
+    
+    def filter_matches(self, matches, keypoints_left, keypoints_right):
+        if len(matches) < self.min_matches:
+            return []
+        src_pts = np.float32([keypoints_left[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([keypoints_right[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        mask = self.ransac.estimate(src_pts, dst_pts, None)
+        filtered_matches = [m for i, m in enumerate(matches) if mask[i] == 1]
+        return filtered_matches
+    
+
 #Images L & R --> groups of points on each image corresponding
 #to common features
 
