@@ -1,0 +1,86 @@
+from pathlib import Path
+import numpy as np
+
+
+
+
+#   Goal: 
+#   Take in IMU Data for system dynamics prediction
+#   Steps:
+#       - Take in IMU data from dataset
+#       - Use changes in ang and lin for system dynamics
+#       - Spit out new states for each time step
+
+#   States:
+#   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
+
+class IMUKalmanFilter:
+    def __init__(self, dt, initial_state, initial_covariance, process_noise, measurement_noise):
+        self.dt = dt
+        self.state = initial_state
+        self.P = np.eye(6) * initial_covariance
+        self.Q = np.eye(6) * process_noise
+        self.R = np.eye(6) * measurement_noise
+
+        self.x_k = np.zeros(6) # [x, y, z, t_x, t_y, t_z]
+
+    def predict(self, dt, ang_vel: np.ndarray, lin_acc: np.ndarray):
+        # Update dt
+        self.dt = dt
+
+        # Extract state variables
+        x, y, z, t_x, t_y, t_z = self.state
+        gyro_x = ang_vel[0]
+        gyro_y = ang_vel[1]
+        gyro_z = ang_vel[2]
+        acc_x = lin_acc[0]
+        acc_y = lin_acc[1]
+        acc_z = lin_acc[2]
+
+        self.euler_to_rotation_matrix(t_x, t_y, t_z)
+
+        # Transfer the gyro vector to the world frame
+        gyro_world = self.drone_to_world_frame_matrix @ np.array([gyro_x, gyro_y, gyro_z])
+
+        # Integrate the gyro vector to get the new orientation
+        t_x += gyro_world[0] * self.dt
+        t_y += gyro_world[1] * self.dt
+        t_z += gyro_world[2] * self.dt
+
+        # Transfer the acceleration vector to the world frame
+        acc_world = self.drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z])
+
+        # Integrate the acceleration vector to get the new position
+        x += acc_world[0] * self.dt * self.dt
+        y += acc_world[1] * self.dt * self.dt
+        z += acc_world[2] * self.dt * self.dt
+
+        # Update the state
+        self.state = np.array([x, y, z, t_x, t_y, t_z])
+    
+    def update(self, lin_acc):
+        print("TODO")
+
+    def euler_to_rotation_matrix(self, t_x, t_y, t_z):
+        # Convert euler angles to rotation matrix
+        # t_x is roll, t_y is pitch, t_z is yaw
+        cos_t_x = np.cos(t_x)
+        sin_t_x = np.sin(t_x)
+        cos_t_y = np.cos(t_y)
+        sin_t_y = np.sin(t_y)
+        cos_t_z = np.cos(t_z)
+        sin_t_z = np.sin(t_z)
+
+        self.drone_to_world_frame_matrix = np.array([[cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
+                      [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
+                      [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
+
+
+
+
+
+
+
+
+
+
