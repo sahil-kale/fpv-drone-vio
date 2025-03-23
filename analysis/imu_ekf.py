@@ -2,8 +2,6 @@ from pathlib import Path
 import numpy as np
 
 
-
-
 #   Goal: 
 #   Take in IMU Data for system dynamics prediction
 #   Steps:
@@ -21,6 +19,9 @@ class IMUKalmanFilter:
         self.P = np.eye(6) * initial_covariance
         self.Q = np.eye(6) * process_noise
         self.R = np.eye(6) * measurement_noise
+        
+        self.K = 1
+        self.C = np.eye(6)
 
         self.x_k = np.zeros(6) # [x, y, z, t_x, t_y, t_z]
 
@@ -59,6 +60,13 @@ class IMUKalmanFilter:
         self.state = np.array([x, y, z, t_x, t_y, t_z])
     
     def update(self, lin_acc):
+
+        # Kalman Gain: K = P_k|k-1 * C^T (C*P_k|k-1*C^T + R_k )^-1
+        # X_k|k = x_k|k-1 + K * (z_k - z_k|k-1)
+        # P_k,k = (I - KC)P_k|k-1
+
+        self.K = self.P @ np.linalg.inv(self.C) @ np.linalg.inv((self.C @ self.P @ np.linalg.inv(self.C) + self.R))
+        self.x_k = self.x_k + self.K * ( - self.state) # Not sure how to get the real output, z
         print("TODO")
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
@@ -71,9 +79,10 @@ class IMUKalmanFilter:
         cos_t_z = np.cos(t_z)
         sin_t_z = np.sin(t_z)
 
-        self.drone_to_world_frame_matrix = np.array([[cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
-                      [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
-                      [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
+        self.drone_to_world_frame_matrix = np.array([
+            [cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
+            [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
+            [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
 
 
 
