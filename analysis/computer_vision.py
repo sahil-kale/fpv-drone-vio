@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
+import yaml
 
 #Load left and right images
 def load_images(input:interface.VisionInputFrame):
@@ -146,8 +147,81 @@ class RANSACFilter(FeatureMatchFilter):
         return filtered_matches
 
 
-#Images L & R --> groups of points on each image corresponding
-#to common features
+class StereoProjection:
+    def __init__(self, yaml_file):
+        """
+        Initializes the StereoProjection class by loading camera intrinsics and extrinsics from a YAML file.
+        """
+        self.yaml_file = yaml_file
+        self.K0 = None  # Left camera intrinsic matrix
+        self.K1 = None  # Right camera intrinsic matrix
+        self.R = None  # Rotation matrix (left to right camera)
+        self.t = None  # Translation vector (left to right camera)
+        self.P0 = None  # Left camera projection matrix
+        self.P1 = None  # Right camera projection matrix
+
+        # Load the YAML data and compute projection matrices
+        self.load_from_yaml()
+
+    def load_from_yaml(self):
+        """
+        Reads the YAML calibration file and extracts the necessary camera parameters.
+        """
+        with open(self.yaml_file, "r") as file:
+            data = yaml.safe_load(file)
+
+        # Extract camera intrinsics
+        K0_values = data["cam0"]["intrinsics"]
+        K1_values = data["cam1"]["intrinsics"]
+
+        self.K0 = np.array([[K0_values[0], 0, K0_values[2]],
+                            [0, K0_values[1], K0_values[3]],
+                            [0, 0, 1]])
+
+        self.K1 = np.array([[K1_values[0], 0, K1_values[2]],
+                            [0, K1_values[1], K1_values[3]],
+                            [0, 0, 1]])
+
+        # Extract extrinsic parameters (Rotation & Translation)
+        T = np.array(data["cam1"]["T_cn_cnm1"])  # Transformation matrix
+        self.R = T[:3, :3]  # First 3x3 block is the rotation matrix
+        self.t = T[:3, 3].reshape(3, 1)  # Last column is the translation vector
+
+        # Compute projection matrices
+        self.P0 = np.hstack((self.K0, np.zeros((3, 1))))  # P0 = K0 * [I | 0]
+        Rt = np.hstack((self.R, self.t))  # Combine R and t
+        self.P1 = self.K1 @ Rt  # P1 = K1 * [R | t]
+
+    def triangulate_points(self, points_left, points_right):
+        """
+        Triangulates 3D points from corresponding feature points in left and right images.
+
+        :param points_left: Nx2 array of 2D points in the left image.
+        :param points_right: Nx2 array of 2D points in the right image.
+        :return: Nx3 array of triangulated 3D points in the left camera frame.
+        """
+        # Convert to homogeneous coordinates (adding 1s as the third dimension)
+        points_left_hom = np.vstack((points_left.T, np.ones((1, points_left.shape[0]))))
+        points_right_hom = np.vstack((points_right.T, np.ones((1, points_right.shape[0]))))
+
+        # Perform triangulation
+        points_4D = cv2.triangulatePoints(self.P0, self.P1, points_left_hom[:2], points_right_hom[:2])
+
+        # Convert from homogeneous to Euclidean coordinates
+        points_3D = points_4D[:3] / points_4D[3]
+
+        return points_3D.T  # Return Nx3 array
+
+    def print_matrices(self):
+        """
+        Prints the intrinsic and projection matrices.
+        """
+        print("\nIntrinsic Matrix (K0 - Left Camera):\n", self.K0)
+        print("\nIntrinsic Matrix (K1 - Right Camera):\n", self.K1)
+        print("\nRotation Matrix (R - Left to Right Camera):\n", self.R)
+        print("\nTranslation Vector (t - Left to Right Camera):\n", self.t)
+        print("\nProjection Matrix for Left Camera (P0):\n", self.P0)
+        print("\nProjection Matrix for Right Camera (P1):\n", self.P1)
 
 #List of images (L & R)1, (L & R)2, (L & R)3, ... (L & R)n
 # Find common features shared within the set
