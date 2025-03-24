@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 
-
 #Load left and right images
 def load_images(input:interface.VisionInputFrame):
     left_image = cv2.imread(input.get_image_left_path())
@@ -100,6 +99,7 @@ class FLANNMatcher(FeatureMatcher):
         matches = self.flann.knnMatch(left_descriptors, right_descriptors, k=2)
         return matches
 
+
 #Filter matches to remove outliers
 class FeatureMatchFilter(ABC):
     """
@@ -144,7 +144,7 @@ class RANSACFilter(FeatureMatchFilter):
         mask = self.ransac.estimate(src_pts, dst_pts, None)
         filtered_matches = [m for i, m in enumerate(matches) if mask[i] == 1]
         return filtered_matches
-    
+
 
 #Images L & R --> groups of points on each image corresponding
 #to common features
