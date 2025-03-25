@@ -224,22 +224,51 @@ class StereoProjection:
         print("\nProjection Matrix for Left Camera (P0):\n", self.P0)
         print("\nProjection Matrix for Right Camera (P1):\n", self.P1)
 
-def show_keypoints(keypoints, image, draw_rich_keypoints = False):
+
+def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=False):
+    """
+    Display two images side by side with keypoints plotted on them.
+
+    :param image1: The first image on which to draw keypoints.
+    :param keypoints1: Keypoints detected in the first image.
+    :param image2: The second image on which to draw keypoints.
+    :param keypoints2: Keypoints detected in the second image.
+    :param draw_rich_keypoints: Whether to draw rich keypoints (with size and orientation).
+    """
+    # Draw keypoints on the first image
     if draw_rich_keypoints:
-        image_with_keypoints = cv2.drawKeypoints(image, keypoints, None,
-                                             flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
-                                             color=(0, 255, 0))  # Green keypoints
+        image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
+                                                  flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+                                                  color=(0, 255, 0))  # Green keypoints
     else:
-        image_with_keypoints = cv2.drawKeypoints(image, keypoints, None,
-                                                 color=(0, 255, 0))  # Green keypoints
+        image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
+                                                  color=(0, 255, 0))  # Green keypoints
 
-    # Show the image using Matplotlib (better for noteb ooks)
-    plt.figure(figsize=(8, 6))
-    plt.imshow(image_with_keypoints, cmap="gray")
-    plt.title("Detected Keypoints")
-    plt.axis("off")
+    # Draw keypoints on the second image
+    if draw_rich_keypoints:
+        image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
+                                                  flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+                                                  color=(0, 255, 0))  # Green keypoints
+    else:
+        image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
+                                                  color=(0, 255, 0))  # Green keypoints
+
+    # Create a subplot to show the two images side by side
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+    # Plot the first image with keypoints
+    axes[0].imshow(image_with_keypoints1, cmap="gray")
+    axes[0].set_title("Image 1 with Keypoints")
+    axes[0].axis("off")
+
+    # Plot the second image with keypoints
+    axes[1].imshow(image_with_keypoints2, cmap="gray")
+    axes[1].set_title("Image 2 with Keypoints")
+    axes[1].axis("off")
+
+    # Display the plot
+    plt.tight_layout()
     plt.show()
-
 
 def show_points(image1, points1, image2, points2, point_cloud):
     """
@@ -354,9 +383,13 @@ if __name__ == "__main__":
     l2_keypoints, l2_descriptors = extractor.extract_features(left2_gs)
     r2_keypoints, r2_descriptors = extractor.extract_features(right2_gs)
 
+    show_keypoints(left1, l1_keypoints, right1, r1_keypoints)
+
     matcher = FLANNMatcher()
     matches1 = matcher.match_features(l1_descriptors, r1_descriptors)
     matches2 = matcher.match_features(l2_descriptors, r2_descriptors)
+
+    show_keypoints(left1, matches1, right1, matches1)
 
     # Ransac filter is not working since CV2 does not have a class called RANSACReprojectionSolver
     filter = RatioTestFilter()
