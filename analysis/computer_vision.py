@@ -217,8 +217,8 @@ class StereoProjection:
         points_right = points_right.reshape(-1, 1, 2)
 
         # Undistort and normalize the points
-        points_left_norm = cv2.undistortPoints(points_left, self.K0, self.dist_coeffs0, R=None)
-        points_right_norm = cv2.undistortPoints(points_right, self.K1, self.dist_coeffs1, R=None)
+        points_left_norm = cv2.fisheye.undistortPoints(points_left, self.K0, self.dist_coeffs0, R=None)
+        points_right_norm = cv2.fisheye.undistortPoints(points_right, self.K1, self.dist_coeffs1, R=None)
 
         if use_normalized_projection:
             P0 = np.hstack((np.eye(3), np.zeros((3, 1))))  # Use identity matrix for intrinsics
@@ -542,10 +542,10 @@ if __name__ == "__main__":
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
     pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
-    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=False)
+    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
 
     pl2, pr2 = extract_points_from_matches(consistent_matches2, l2_keypoints, r2_keypoints)
-    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=False)
+    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
     # Find transformation between frame 1 and frame 2
     transformation = find_transformation(points1, points2)
