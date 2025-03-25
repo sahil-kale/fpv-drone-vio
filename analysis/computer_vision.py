@@ -436,6 +436,49 @@ def plot_3d_point_cloud(points_3d):
 
     plt.show()
 
+
+#Find the transformation matrix between the two frames using the two point clouds
+def find_transformation(src_points, dst_points):
+    """
+    Find the transformation matrix between two sets of 3D points using SVD.
+    
+    :param src_points: Source points (Nx3 array)
+    :param dst_points: Destination points (Nx3 array)
+    :return: 4x4 transformation matrix
+    """
+    # Calculate centroids
+    src_centroid = np.mean(src_points, axis=0)
+    dst_centroid = np.mean(dst_points, axis=0)
+    
+    # Center the points
+    src_centered = src_points - src_centroid
+    dst_centered = dst_points - dst_centroid
+    
+    # Calculate rotation using SVD
+    H = src_centered.T @ dst_centered
+    U, _, Vt = np.linalg.svd(H)
+    R = Vt.T @ U.T
+    
+    # Ensure proper rotation matrix (handle reflection case)
+    if np.linalg.det(R) < 0:
+        Vt[-1,:] *= -1
+        R = Vt.T @ U.T
+    
+    # Calculate translation
+    t = dst_centroid - R @ src_centroid
+    
+    # Create 4x4 transformation matrix
+    T = np.eye(4)
+    T[:3,:3] = R
+    T[:3,3] = t
+    
+    return T
+
+def update_camera_pose(T_relative):
+    global T_world_to_current
+    T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
+    return T_world_to_current
+
 if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
     frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
@@ -460,22 +503,119 @@ if __name__ == "__main__":
     matches1 = matcher.match_features(l1_descriptors, r1_descriptors)
     matches2 = matcher.match_features(l2_descriptors, r2_descriptors)
 
-    # Ransac filter is not working since CV2 does not have a class called RANSACReprojectionSolver
+    # First filter matches between left-right pairs using RANSAC
     filter = RANSACFilter(min_matches=12, reproj_thresh=1)
     filtered_matches1 = filter.filter_matches(matches1, l1_keypoints, r1_keypoints)
     filtered_matches2 = filter.filter_matches(matches2, l2_keypoints, r2_keypoints)
+
+    # Now match features between left images of frame 1 and 2
+    matches_between_frames = matcher.match_features(l1_descriptors, l2_descriptors)
+    filtered_matches_between_frames = filter.filter_matches(matches_between_frames, l1_keypoints, l2_keypoints)
+
+    # Create mapping between frames
+    matches_dict = {}
+    for m in filtered_matches_between_frames:
+        idx1 = m.queryIdx  # Index in frame 1 left image
+        idx2 = m.trainIdx  # Index in frame 2 left image
+        matches_dict[idx1] = idx2
+
+    # Filter to keep only matches present in all four images
+    consistent_matches1 = []
+    consistent_matches2 = []
+    
+    for m1 in filtered_matches1:
+        left_idx = m1.queryIdx
+        if left_idx in matches_dict:  # If this point has a match in frame 2
+            frame2_left_idx = matches_dict[left_idx]
+            # Find corresponding match in filtered_matches2
+            for m2 in filtered_matches2:
+                if m2.queryIdx == frame2_left_idx:
+                    consistent_matches1.append(m1)
+                    consistent_matches2.append(m2)
+                    break
+
+    filtered_matches1 = consistent_matches1
+    filtered_matches2 = consistent_matches2
 
     # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
 
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
-    pl1, pr1 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
-    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
+    pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
+    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=False)
 
-    pl2, pr2 = extract_points_from_matches(filtered_matches2, l2_keypoints, r2_keypoints)
-    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
+    pl2, pr2 = extract_points_from_matches(consistent_matches2, l2_keypoints, r2_keypoints)
+    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=False)
 
+    # Find transformation between frame 1 and frame 2
+    transformation = find_transformation(points1, points2)
+    print("\nTransformation Matrix between Frame 1 and Frame 2:")
+    print(transformation)
+
+    T_cam_imu0 = np.linalg.inv(np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
+                                         [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
+                                         [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
+                                         [ 0, 0, 0, 1]]))
+
+    # Initial transformation: Camera's z-axis aligned with world's x-axis, shifted up 2 units in world z-axis
+    T_world_to_current = np.array([
+        [-0.6308871878503666, 0.775778177185825, 0.012230127084176465, 7.60668919163082],  # Camera z-axis -> World x-axis
+        [ -0.7758619249210552, -0.6307085060763604, -0.015654194987939865, 0.246246215953204],  # Camera y-axis -> World y-axis
+        [-0.004430537670670494, -0.019364920995560968, 0.9998026656149626, -0.880815170689076], # Camera x-axis -> World -z-axis
+        [0, 0, 0, 1]   # Homogeneous coordinates
+    ])
+
+    print("\nNew Transformation Matrix (World to Current Frame):")
+    T_world_to_current2 = update_camera_pose(transformation)
+    print(T_world_to_current2)
+    
+
+
+    """
+    -0.630914015914675 0.7757556783140641 0.012273226385246232 7.60666536072954
+    -0.7758406136151782 -0.6307366795317234 -0.015575087753203145 0.246270702230251
+    -0.004341288707415834 -0.0193486086523643 0.9998033729466893 -0.880807258137499
+    0.0 0.0 0.0 1.0
+    """
+    
     show_points(left1, pl1, right1, pr1, points1)
+
+    #transform points1 to the world frame
+    points1_world = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.vstack((points1.T, np.ones(points1.shape[0])))))
+    points1_world = points1_world[:3].T
+
+    #Get old camera pos in world coords
+    old_cam_pos = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.array([0, 0, 0, 1])))
+    old_cam_pos = old_cam_pos[:3]
+
+    #transform points2 to the new world frame
+    points2_world = np.dot(T_cam_imu0, np.dot(T_world_to_current2, np.vstack((points2.T, np.ones(points2.shape[0])))))
+    points2_world = points2_world[:3].T
+
+    #Get new camera pos in world coords
+    new_cam_pos = np.dot(T_cam_imu0, np.dot(T_world_to_current2, np.array([0, 0, 0, 1])))
+    new_cam_pos = new_cam_pos[:3]
+
+    #plot the old points in the world frame in red, and the new ones in blue in the same plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.scatter(points1_world[:, 0], points1_world[:, 1], points1_world[:, 2], c='r', marker='o')
+    ax.scatter(points2_world[:, 0], points2_world[:, 1], points2_world[:, 2], c='b', marker='o')
+
+    #plot old camera pos in green
+    ax.scatter(old_cam_pos[0], old_cam_pos[1], old_cam_pos[2], c='g', marker='v', s=100)
+
+    #plot new camera pos in purple
+    ax.scatter(new_cam_pos[0], new_cam_pos[1], new_cam_pos[2], c='purple', marker='^', facecolors='none', s=100)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    plt.show()
+
+
 
 
 #List of images (L & R)1, (L & R)2, (L & R)3, ... (L & R)n
