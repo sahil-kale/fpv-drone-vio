@@ -335,6 +335,28 @@ def show_points(image1, points1, image2, points2, point_cloud):
     plt.tight_layout()
     plt.show()
 
+
+def show_matches(image1, image2, matches, keypoints1, keypoints2):
+    """
+    Show the matching keypoints between two images using the matches list.
+
+    :param image1: The first image.
+    :param image2: The second image.
+    :param matches: List of good matches (from FLANN or other matchers).
+    :param keypoints1: Keypoints detected in the first image.
+    :param keypoints2: Keypoints detected in the second image.
+    """
+    # Draw matches on the images
+    image_with_matches = cv2.drawMatches(image1, keypoints1, image2, keypoints2, matches, None,
+                                         flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
+    # Show the image using Matplotlib
+    plt.figure(figsize=(10, 8))
+    plt.imshow(image_with_matches)
+    plt.title("Matches between Image 1 and Image 2")
+    plt.axis("off")
+    plt.show()
+
 def extract_points_from_matches(filtered_matches, keypoints_left, keypoints_right):
     left_points = []
     right_points = []
@@ -383,18 +405,21 @@ if __name__ == "__main__":
     l2_keypoints, l2_descriptors = extractor.extract_features(left2_gs)
     r2_keypoints, r2_descriptors = extractor.extract_features(right2_gs)
 
-    show_keypoints(left1, l1_keypoints, right1, r1_keypoints)
-
     matcher = FLANNMatcher()
     matches1 = matcher.match_features(l1_descriptors, r1_descriptors)
     matches2 = matcher.match_features(l2_descriptors, r2_descriptors)
-
-    show_keypoints(left1, matches1, right1, matches1)
 
     # Ransac filter is not working since CV2 does not have a class called RANSACReprojectionSolver
     filter = RatioTestFilter()
     filtered_matches1 = filter.filter_matches(matches1)
     filtered_matches2 = filter.filter_matches(matches2)
+
+    show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
+
+    # good_matches = []
+    # for m, n in filtered_matches1:
+    #     if m.distance < 0.75 * n.distance:
+    #         good_matches.append(m)
 
     StereoPair = StereoProjection("camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
