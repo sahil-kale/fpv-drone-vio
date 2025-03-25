@@ -121,7 +121,7 @@ class RatioTestFilter(FeatureMatchFilter):
     Filter matches using Lowe's ratio test
     """
 
-    def __init__(self, ratio=0.75):
+    def __init__(self, ratio=0.5):
         self.ratio = ratio
     
     def filter_matches(self, matches, keypoints_left=None, keypoints_right=None):
@@ -465,12 +465,7 @@ if __name__ == "__main__":
     filtered_matches1 = filter.filter_matches(matches1, l1_keypoints, r1_keypoints)
     filtered_matches2 = filter.filter_matches(matches2, l2_keypoints, r2_keypoints)
 
-    show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
-
-    # good_matches = []
-    # for m, n in filtered_matches1:
-    #     if m.distance < 0.75 * n.distance:
-    #         good_matches.append(m)
+    # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
 
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
@@ -480,10 +475,7 @@ if __name__ == "__main__":
     pl2, pr2 = extract_points_from_matches(filtered_matches2, l2_keypoints, r2_keypoints)
     points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-    # plot_3d_point_cloud(points1)
     show_points(left1, pl1, right1, pr1, points1)
-
-    # plot_3d_point_cloud(points2)
 
 
 #List of images (L & R)1, (L & R)2, (L & R)3, ... (L & R)n
