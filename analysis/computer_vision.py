@@ -372,7 +372,7 @@ if __name__ == "__main__":
     points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2))
 
     # plot_3d_point_cloud(points1)
-    show_points(left1, pl1, right2, pl2, points1)
+    show_points(left1, pl1, right1, pr1, points1)
 
     # plot_3d_point_cloud(points2)
 
