@@ -485,8 +485,8 @@ def update_camera_pose(T_relative):
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
-    frame1 = interface.VisionInputFrame("image_0_0.png", "image_1_0.png")
-    frame2 = interface.VisionInputFrame("image_0_1.png", "image_1_1.png")
+    frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
+    frame2 = interface.VisionInputFrame("analysis/image_0_1.png", "analysis/image_1_1.png")
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
@@ -543,7 +543,7 @@ if __name__ == "__main__":
 
     # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
 
-    StereoPair = StereoProjection("camchain-..indoor_forward_calib_snapdragon_cam.yaml")
+    StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
     pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
     points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
