@@ -26,6 +26,8 @@ class IMUKalmanFilter:
 
         self.x_k = np.zeros(6) # [x, y, z, t_x, t_y, t_z]
 
+        self.gravity = np.array([0, 0, -gravity])
+
     def predict(self, dt, ang_vel: np.ndarray, lin_acc: np.ndarray):
         # Update dt
         self.dt = dt
@@ -50,12 +52,12 @@ class IMUKalmanFilter:
         t_z += gyro_world[2] * self.dt
 
         # Transfer the acceleration vector to the world frame
-        acc_world = self.drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z])
+        acc_world = self.drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z]) - self.gravity
 
         # Integrate the acceleration vector to get the new position
         x += acc_world[0] * self.dt * self.dt
         y += acc_world[1] * self.dt * self.dt
-        z += (acc_world[2] - gravity) * self.dt * self.dt
+        z += acc_world[2] * self.dt * self.dt
 
         # Update the state
         self.state = np.array([x, y, z, t_x, t_y, t_z])
@@ -70,8 +72,7 @@ class IMUKalmanFilter:
 
         self.K = self.P @ np.linalg.inv(self.C) @ np.linalg.inv((self.C @ self.P @ np.linalg.inv(self.C) + self.R))
         self.x_k = self.x_k + self.K * ( camera_measurments - self.state) # Not sure how to get the real output, z
-        self.P = (np.eye(6) - self.K @ self.C)@self.P
-        print("TODO")
+        self.P = (np.eye(6) - self.K @ self.C) @ self.P
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
         # Convert euler angles to rotation matrix
