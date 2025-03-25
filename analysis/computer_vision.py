@@ -99,6 +99,8 @@ class FLANNMatcher(FeatureMatcher):
     
     def match_features(self, left_descriptors, right_descriptors):
         matches = self.flann.knnMatch(left_descriptors, right_descriptors, k=2)
+        # Convert matches from list of lists to list of DMatch objects
+        matches = [m[0] for m in matches if len(m) == 2]
         return matches
 
 
@@ -108,7 +110,7 @@ class FeatureMatchFilter(ABC):
     Abstract class for feature match filtering
     """
     @abstractmethod
-    def filter_matches(self, matches):
+    def filter_matches(self, matches, keypoints_left=None, keypoints_right=None):
         """
         Take matches and return filtered matches
         """
@@ -122,7 +124,7 @@ class RatioTestFilter(FeatureMatchFilter):
     def __init__(self, ratio=0.75):
         self.ratio = ratio
     
-    def filter_matches(self, matches):
+    def filter_matches(self, matches, keypoints_left=None, keypoints_right=None):
         filtered_matches = []
         for m, n in matches:
             if m.distance < self.ratio * n.distance:
@@ -136,15 +138,15 @@ class RANSACFilter(FeatureMatchFilter):
     def __init__(self, min_matches=8, reproj_thresh=4.0):
         self.min_matches = min_matches
         self.reproj_thresh = reproj_thresh
-        self.ransac = cv2.RANSACReprojectionSolver(reproj_thresh, min_matches)
     
     def filter_matches(self, matches, keypoints_left, keypoints_right):
         if len(matches) < self.min_matches:
             return []
-        src_pts = np.float32([keypoints_left[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-        dst_pts = np.float32([keypoints_right[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-        mask = self.ransac.estimate(src_pts, dst_pts, None)
-        filtered_matches = [m for i, m in enumerate(matches) if mask[i] == 1]
+        src_pts = np.float32([keypoints_left[m.queryIdx].pt for m in matches]).reshape(-1, 2)
+        dst_pts = np.float32([keypoints_right[m.trainIdx].pt for m in matches]).reshape(-1, 2)
+        _, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.FM_RANSAC, self.reproj_thresh)
+        mask = mask.ravel().tolist()
+        filtered_matches = [m for i, m in enumerate(matches) if mask[i]]
         return filtered_matches
 
 
@@ -160,6 +162,8 @@ class StereoProjection:
         self.t = None  # Translation vector (left to right camera)
         self.P0 = None  # Left camera projection matrix
         self.P1 = None  # Right camera projection matrix
+        self.dist_coeffs0 = None  # Distortion coefficients for left camera
+        self.dist_coeffs1 = None  # Distortion coefficients for right camera
 
         # Load the YAML data and compute projection matrices
         self.load_from_yaml()
@@ -183,30 +187,48 @@ class StereoProjection:
                             [0, K1_values[1], K1_values[3]],
                             [0, 0, 1]])
 
+        self.dist_coeffs0 = np.array(data["cam0"]["distortion_coeffs"])
+        self.dist_coeffs1 = np.array(data["cam1"]["distortion_coeffs"])
+
         # Extract extrinsic parameters (Rotation & Translation)
         T = np.array(data["cam1"]["T_cn_cnm1"])  # Transformation matrix
         self.R = T[:3, :3]  # First 3x3 block is the rotation matrix
         self.t = T[:3, 3].reshape(3, 1)  # Last column is the translation vector
 
         # Compute projection matrices
-        self.P0 = np.hstack((self.K0, np.zeros((3, 1))))  # P0 = K0 * [I | 0]
+        self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
         Rt = np.hstack((self.R, self.t))  # Combine R and t
         self.P1 = self.K1 @ Rt  # P1 = K1 * [R | t]
 
-    def triangulate_points(self, points_left, points_right):
+    def triangulate_points(self, points_left, points_right, use_normalized_projection=False):
         """
         Triangulates 3D points from corresponding feature points in left and right images.
 
         :param points_left: Nx2 array of 2D points in the left image.
         :param points_right: Nx2 array of 2D points in the right image.
+        :param use_normalized_projection: If True, use identity intrinsic matrix in projection.
         :return: Nx3 array of triangulated 3D points in the left camera frame.
         """
-        # Convert to homogeneous coordinates (adding 1s as the third dimension)
-        points_left_hom = np.vstack((points_left.T, np.ones((1, points_left.shape[0]))))
-        points_right_hom = np.vstack((points_right.T, np.ones((1, points_right.shape[0]))))
+        points_left = np.array(points_left, dtype=np.float32)
+        points_right = np.array(points_right, dtype=np.float32)
+
+        # Convert points to the shape expected by OpenCV functions
+        points_left = points_left.reshape(-1, 1, 2)
+        points_right = points_right.reshape(-1, 1, 2)
+
+        # Undistort and normalize the points
+        points_left_norm = cv2.undistortPoints(points_left, self.K0, self.dist_coeffs0, R=None)
+        points_right_norm = cv2.undistortPoints(points_right, self.K1, self.dist_coeffs1, R=None)
+
+        if use_normalized_projection:
+            P0 = np.hstack((np.eye(3), np.zeros((3, 1))))  # Use identity matrix for intrinsics
+            P1 = np.hstack((self.R, self.t))
+        else:
+            P0 = self.P0
+            P1 = self.P1
 
         # Perform triangulation
-        points_4D = cv2.triangulatePoints(self.P0, self.P1, points_left_hom[:2], points_right_hom[:2])
+        points_4D = cv2.triangulatePoints(P0, P1, points_left_norm, points_right_norm)
 
         # Convert from homogeneous to Euclidean coordinates
         points_3D = points_4D[:3] / points_4D[3]
@@ -283,54 +305,83 @@ def show_points(image1, points1, image2, points2, point_cloud):
     # Copy images to avoid modifying the original
     image_with_points1 = image1.copy()
     image_with_points2 = image2.copy()
-
-    # Draw points on the first image
-    for point in points1:
+    
+    # Combine points with point cloud and sort by x-coordinate in left image
+    combined_data = [(point[0], point, points2[i], point_cloud[i]) 
+                    for i, point in enumerate(points1)]
+    combined_data.sort(key=lambda x: float(x[0]))  # Sort by x-coordinate as float
+    
+    # Unpack the sorted data
+    sorted_points1 = [data[1] for data in combined_data]
+    sorted_points2 = [data[2] for data in combined_data]
+    sorted_point_cloud = np.array([data[3] for data in combined_data])
+    
+    # Generate a colormap with unique colors for each point
+    num_points = len(sorted_points1)
+    cmap = plt.cm.get_cmap('hsv', num_points)
+    colors = [cmap(i)[:3] for i in range(num_points)]
+    
+    # Convert colors from 0-1 range to 0-255 range for OpenCV
+    opencv_colors = [(int(b*255), int(g*255), int(r*255)) for r, g, b in colors]
+    
+    # Draw points on the first image with unique colors
+    for i, point in enumerate(sorted_points1):
         x, y = point
-        # Draw a smaller filled circle for each point
-        cv2.circle(image_with_points1, (int(x), int(y)), 3, (0, 255, 0), -1)  # Green filled circle
-
-    # Draw points on the second image
-    for point in points2:
+        color = opencv_colors[i]
+        cv2.circle(image_with_points1, (int(x), int(y)), 3, color, -1)
+    
+    # Draw points on the second image with the same colors
+    for i, point in enumerate(sorted_points2):
         x, y = point
-        # Draw a smaller filled circle for each point
-        cv2.circle(image_with_points2, (int(x), int(y)), 3, (0, 255, 0), -1)  # Green filled circle
-
+        color = opencv_colors[i]
+        cv2.circle(image_with_points2, (int(x), int(y)), 3, color, -1)
+    
     # Create a subplot to show the two images side by side, and a 3D plot for the point cloud
     fig = plt.figure(figsize=(18, 6))
-
+    
     # Plot the first image with points
     ax1 = fig.add_subplot(131)
-    ax1.imshow(image_with_points1, cmap="gray")
+    ax1.imshow(cv2.cvtColor(image_with_points1, cv2.COLOR_BGR2RGB))
     ax1.set_title("Image 1 with Points")
     ax1.axis("off")
-
+    
     # Plot the second image with points
     ax2 = fig.add_subplot(132)
-    ax2.imshow(image_with_points2, cmap="gray")
+    ax2.imshow(cv2.cvtColor(image_with_points2, cv2.COLOR_BGR2RGB))
     ax2.set_title("Image 2 with Points")
     ax2.axis("off")
-
-    # Plot the 3D point cloud
+    
+    # Plot the 3D point cloud with matching colors
     ax3 = fig.add_subplot(133, projection='3d')
-    point_cloud = np.array(point_cloud)
-
-    # Extract X, Y, Z coordinates from the point cloud
-    X = point_cloud[:, 0]
-    Y = point_cloud[:, 1]
-    Z = point_cloud[:, 2]
-
-    # Plot the points in 3D space
-    ax3.scatter(X, Y, Z, c='r', marker='o')
+    
+    # Extract X, Y, Z coordinates from the sorted point cloud
+    X = sorted_point_cloud[:, 0]
+    Y = sorted_point_cloud[:, 1]
+    Z = sorted_point_cloud[:, 2]
+    
+    # Plot each point with its corresponding color
+    for i in range(len(X)):
+        ax3.scatter(X[i], Y[i], Z[i], c=[colors[i]], marker='o', s=10)
+    
     # Plot the origin (0, 0, 0) as a unique point
-    ax3.scatter(0, 0, 0, c='b', marker='^', s=100, label='Origin')  # Blue triangle, size 100
-
+    ax3.scatter(0, 0, 0, c='k', marker='^', s=100, label='Origin')  # Black triangle
+    
     # Set labels for the 3D plot
     ax3.set_xlabel('X')
     ax3.set_ylabel('Y')
     ax3.set_zlabel('Z')
     ax3.set_title("3D Point Cloud")
+    
+    # Determine axis limits dynamically
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax3.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax3.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax3.set_zlim(mid_z - max_range, mid_z + max_range)
 
+    
     # Display the plot
     plt.tight_layout()
     plt.show()
@@ -387,8 +438,8 @@ def plot_3d_point_cloud(points_3d):
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
-    frame1 = interface.VisionInputFrame("image_0_0.png", "image_1_0.png")
-    frame2 = interface.VisionInputFrame("image_0_1.png", "image_1_1.png")
+    frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
+    frame2 = interface.VisionInputFrame("analysis/image_0_1.png", "analysis/image_1_1.png")
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
@@ -410,9 +461,9 @@ if __name__ == "__main__":
     matches2 = matcher.match_features(l2_descriptors, r2_descriptors)
 
     # Ransac filter is not working since CV2 does not have a class called RANSACReprojectionSolver
-    filter = RatioTestFilter()
-    filtered_matches1 = filter.filter_matches(matches1)
-    filtered_matches2 = filter.filter_matches(matches2)
+    filter = RANSACFilter(min_matches=12, reproj_thresh=1)
+    filtered_matches1 = filter.filter_matches(matches1, l1_keypoints, r1_keypoints)
+    filtered_matches2 = filter.filter_matches(matches2, l2_keypoints, r2_keypoints)
 
     show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
 
@@ -421,13 +472,13 @@ if __name__ == "__main__":
     #     if m.distance < 0.75 * n.distance:
     #         good_matches.append(m)
 
-    StereoPair = StereoProjection("camchain-..indoor_forward_calib_snapdragon_cam.yaml")
+    StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
     pl1, pr1 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
-    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1))
+    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
 
     pl2, pr2 = extract_points_from_matches(filtered_matches2, l2_keypoints, r2_keypoints)
-    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2))
+    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
     # plot_3d_point_cloud(points1)
     show_points(left1, pl1, right1, pr1, points1)
