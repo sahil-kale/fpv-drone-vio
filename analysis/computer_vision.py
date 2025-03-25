@@ -381,6 +381,10 @@ def show_points(image1, points1, image2, points2, point_cloud):
     ax3.set_ylim(mid_y - max_range, mid_y + max_range)
     ax3.set_zlim(mid_z - max_range, mid_z + max_range)
 
+    # Invert X-axis
+    ax3.set_xlim(mid_x - max_range, mid_x + max_range)  # Swapped order to invert
+    ax3.set_ylim(mid_y + max_range, mid_y - max_range)
+    ax3.set_zlim(mid_z - max_range, mid_z + max_range)
     
     # Display the plot
     plt.tight_layout()
@@ -438,8 +442,8 @@ def plot_3d_point_cloud(points_3d):
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
-    frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
-    frame2 = interface.VisionInputFrame("analysis/image_0_1.png", "analysis/image_1_1.png")
+    frame1 = interface.VisionInputFrame("image_0_0.png", "image_1_0.png")
+    frame2 = interface.VisionInputFrame("image_0_1.png", "image_1_1.png")
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
@@ -467,7 +471,7 @@ if __name__ == "__main__":
 
     # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
 
-    StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
+    StereoPair = StereoProjection("camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
     pl1, pr1 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
     points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
