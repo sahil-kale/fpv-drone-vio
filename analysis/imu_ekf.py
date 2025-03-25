@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 
+gravity = 9.81
 
 #   Goal: 
 #   Take in IMU Data for system dynamics prediction
@@ -54,19 +55,22 @@ class IMUKalmanFilter:
         # Integrate the acceleration vector to get the new position
         x += acc_world[0] * self.dt * self.dt
         y += acc_world[1] * self.dt * self.dt
-        z += acc_world[2] * self.dt * self.dt
+        z += (acc_world[2] - gravity) * self.dt * self.dt
 
         # Update the state
         self.state = np.array([x, y, z, t_x, t_y, t_z])
     
-    def update(self, lin_acc):
+    def update(self, camera_measurments: np.ndarray):
+        
+        #assume camera_masurements is the real x,y,z pos
 
         # Kalman Gain: K = P_k|k-1 * C^T (C*P_k|k-1*C^T + R_k )^-1
         # X_k|k = x_k|k-1 + K * (z_k - z_k|k-1)
         # P_k,k = (I - KC)P_k|k-1
 
         self.K = self.P @ np.linalg.inv(self.C) @ np.linalg.inv((self.C @ self.P @ np.linalg.inv(self.C) + self.R))
-        self.x_k = self.x_k + self.K * ( - self.state) # Not sure how to get the real output, z
+        self.x_k = self.x_k + self.K * ( camera_measurments - self.state) # Not sure how to get the real output, z
+        self.P = (np.eye(6) - self.K @ self.C)@self.P
         print("TODO")
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
