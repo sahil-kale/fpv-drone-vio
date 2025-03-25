@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 import yaml
+import matplotlib.pyplot as plt
 
 #Load left and right images
 def load_images(input:interface.VisionInputFrame):
@@ -222,6 +223,159 @@ class StereoProjection:
         print("\nTranslation Vector (t - Left to Right Camera):\n", self.t)
         print("\nProjection Matrix for Left Camera (P0):\n", self.P0)
         print("\nProjection Matrix for Right Camera (P1):\n", self.P1)
+
+def show_keypoints(keypoints, image, draw_rich_keypoints = False):
+    if draw_rich_keypoints:
+        image_with_keypoints = cv2.drawKeypoints(image, keypoints, None,
+                                             flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+                                             color=(0, 255, 0))  # Green keypoints
+    else:
+        image_with_keypoints = cv2.drawKeypoints(image, keypoints, None,
+                                                 color=(0, 255, 0))  # Green keypoints
+
+    # Show the image using Matplotlib (better for noteb ooks)
+    plt.figure(figsize=(8, 6))
+    plt.imshow(image_with_keypoints, cmap="gray")
+    plt.title("Detected Keypoints")
+    plt.axis("off")
+    plt.show()
+
+
+def show_points(image1, points1, image2, points2, point_cloud):
+    """
+    Display two images side by side with points plotted on them, and a 3D point cloud.
+
+    :param image1: The first image on which to draw points.
+    :param points1: List of points (tuples) for the first image.
+    :param image2: The second image on which to draw points.
+    :param points2: List of points (tuples) for the second image.
+    :param point_cloud: A list or array of 3D points (tuples or np.array).
+    """
+    # Copy images to avoid modifying the original
+    image_with_points1 = image1.copy()
+    image_with_points2 = image2.copy()
+
+    # Draw points on the first image
+    for point in points1:
+        x, y = point
+        # Draw a smaller filled circle for each point
+        cv2.circle(image_with_points1, (int(x), int(y)), 3, (0, 255, 0), -1)  # Green filled circle
+
+    # Draw points on the second image
+    for point in points2:
+        x, y = point
+        # Draw a smaller filled circle for each point
+        cv2.circle(image_with_points2, (int(x), int(y)), 3, (0, 255, 0), -1)  # Green filled circle
+
+    # Create a subplot to show the two images side by side, and a 3D plot for the point cloud
+    fig = plt.figure(figsize=(18, 6))
+
+    # Plot the first image with points
+    ax1 = fig.add_subplot(131)
+    ax1.imshow(image_with_points1, cmap="gray")
+    ax1.set_title("Image 1 with Points")
+    ax1.axis("off")
+
+    # Plot the second image with points
+    ax2 = fig.add_subplot(132)
+    ax2.imshow(image_with_points2, cmap="gray")
+    ax2.set_title("Image 2 with Points")
+    ax2.axis("off")
+
+    # Plot the 3D point cloud
+    ax3 = fig.add_subplot(133, projection='3d')
+    point_cloud = np.array(point_cloud)
+
+    # Extract X, Y, Z coordinates from the point cloud
+    X = point_cloud[:, 0]
+    Y = point_cloud[:, 1]
+    Z = point_cloud[:, 2]
+
+    # Plot the points in 3D space
+    ax3.scatter(X, Y, Z, c='r', marker='o')
+    # Plot the origin (0, 0, 0) as a unique point
+    ax3.scatter(0, 0, 0, c='b', marker='^', s=100, label='Origin')  # Blue triangle, size 100
+
+    # Set labels for the 3D plot
+    ax3.set_xlabel('X')
+    ax3.set_ylabel('Y')
+    ax3.set_zlabel('Z')
+    ax3.set_title("3D Point Cloud")
+
+    # Display the plot
+    plt.tight_layout()
+    plt.show()
+
+def extract_points_from_matches(filtered_matches, keypoints_left, keypoints_right):
+    left_points = []
+    right_points = []
+
+    for m in filtered_matches:
+        left_points.append(keypoints_left[m.queryIdx].pt)
+        right_points.append(keypoints_right[m.trainIdx].pt)
+
+    return left_points, right_points
+
+
+def plot_3d_point_cloud(points_3d):
+    """
+    Plot the 3D points using matplotlib.
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.scatter(points_3d[:, 0], points_3d[:, 1], points_3d[:, 2], c='r', marker='o')
+    # Plot the origin (0, 0, 0) as a unique point
+    ax.scatter(0, 0, 0, c='b', marker='^', s=100, label='Origin')  # Blue triangle, size 100
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    plt.show()
+
+if __name__ == "__main__":
+    # load in a stereo pair and two sequential flames
+    frame1 = interface.VisionInputFrame("image_0_0.png", "image_1_0.png")
+    frame2 = interface.VisionInputFrame("image_0_1.png", "image_1_1.png")
+
+    left1, right1 = load_images(frame1)
+    left2, right2 = load_images(frame2)
+
+    left1_gs, right1_gs = preprocess_images(left1, right1)
+    left2_gs, right2_gs = preprocess_images(left2, right2)
+
+    # ORB doesn't work without transforming the uint8 descriptors to uint32
+    # SIFT and AKAZE return uint32s by default
+    extractor = SIFTFeatureExtractor()
+
+    l1_keypoints, l1_descriptors = extractor.extract_features(left1_gs)
+    r1_keypoints, r1_descriptors = extractor.extract_features(right1_gs)
+    l2_keypoints, l2_descriptors = extractor.extract_features(left2_gs)
+    r2_keypoints, r2_descriptors = extractor.extract_features(right2_gs)
+
+    matcher = FLANNMatcher()
+    matches1 = matcher.match_features(l1_descriptors, r1_descriptors)
+    matches2 = matcher.match_features(l2_descriptors, r2_descriptors)
+
+    # Ransac filter is not working since CV2 does not have a class called RANSACReprojectionSolver
+    filter = RatioTestFilter()
+    filtered_matches1 = filter.filter_matches(matches1)
+    filtered_matches2 = filter.filter_matches(matches2)
+
+    StereoPair = StereoProjection("camchain-..indoor_forward_calib_snapdragon_cam.yaml")
+
+    pl1, pr1 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
+    points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1))
+
+    pl2, pr2 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
+    points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2))
+
+    # plot_3d_point_cloud(points1)
+    show_points(left1, pl1, right2, pl2, points1)
+
+    # plot_3d_point_cloud(points2)
+
 
 #List of images (L & R)1, (L & R)2, (L & R)3, ... (L & R)n
 # Find common features shared within the set
