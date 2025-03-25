@@ -368,7 +368,7 @@ if __name__ == "__main__":
     pl1, pr1 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
     points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1))
 
-    pl2, pr2 = extract_points_from_matches(filtered_matches1, l1_keypoints, r1_keypoints)
+    pl2, pr2 = extract_points_from_matches(filtered_matches2, l2_keypoints, r2_keypoints)
     points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2))
 
     # plot_3d_point_cloud(points1)
