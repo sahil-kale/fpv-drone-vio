@@ -1,4 +1,5 @@
 import numpy as np
+from interface import VisionAbsoluteOdometry, IMUInputFrame
 
 GRAVITY_M_PER_S_SQUARED = 9.81
 
@@ -29,7 +30,7 @@ class IMUKalmanFilter:
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
 
-    def predict(self, dt, imu_input_frame: np.ndarray):
+    def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data
         ang_vel = imu_input_frame[:3]
         lin_acc = imu_input_frame[3:]
@@ -66,7 +67,7 @@ class IMUKalmanFilter:
         # Update the state
         self.state = np.array([x, y, z, t_x, t_y, t_z]).reshape(self.num_states, 1)
     
-    def update(self, camera_measurments: np.ndarray):
+    def update(self, camera_measurments: VisionAbsoluteOdometry):
         
         #assume camera_masurements is the real x,y,z pos
 
@@ -74,8 +75,10 @@ class IMUKalmanFilter:
         # X_k|k = x_k|k-1 + K * (z_k - z_k|k-1)
         # P_k,k = (I - KC)P_k|k-1
 
+        measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
+
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
-        self.x_k = self.x_k + self.K * ( camera_measurments - self.state) # Not sure how to get the real output, z
+        self.x_k = self.x_k + self.K * ( measurement_vector - self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
