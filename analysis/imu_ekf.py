@@ -26,8 +26,6 @@ class IMUKalmanFilter:
         self.K = 1
         self.C = np.eye(self.num_states)
 
-        self.x_k = np.zeros(self.num_states) # [x, y, z, t_x, t_y, t_z]
-
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
@@ -78,7 +76,7 @@ class IMUKalmanFilter:
         measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
 
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
-        self.x_k = self.x_k + self.K * ( measurement_vector - self.state) # Not sure how to get the real output, z
+        self.state = self.state + self.K * ( measurement_vector - self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
