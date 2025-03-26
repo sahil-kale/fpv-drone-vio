@@ -79,4 +79,19 @@ class VisionAbsoluteOdometry:
     def get_measurement_vector(self) -> np.ndarray:
         measurement = np.concatenate((self.absolute_translation_vector, self.absolute_rotation_vector))
         assert measurement.shape == (6,), "Measurement vector must be of shape (6,)"
-    
+
+
+def euler_to_rotation_matrix(t_x, t_y, t_z):
+    # Convert euler angles to rotation matrix
+    # t_x is roll, t_y is pitch, t_z is yaw
+    cos_t_x = np.cos(t_x)
+    sin_t_x = np.sin(t_x)
+    cos_t_y = np.cos(t_y)
+    sin_t_y = np.sin(t_y)
+    cos_t_z = np.cos(t_z)
+    sin_t_z = np.sin(t_z)
+
+    return np.array([
+        [cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
+        [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
+        [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
