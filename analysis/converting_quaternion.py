@@ -13,13 +13,18 @@ def convert_to_homogeneous(tx, ty, tz, qx, qy, qz, qw):
     T[:3, 3] = [tx, ty, tz]  # Translation part
     return T
 
+def homogeneous_to_euler(T00, T01, T02, T03, T10, T11, T12, T13, T20, T21, T22, T23, T30, T31, T32, T33):
+    """Convert 4x4 homogeneous matrix to translation (tx, ty, tz) and euler angles (theta_x, theta_y, theta)"""
+    return np.array(T03, T13, T23, np.atan2(T21, T22), np.asin(-T20), np.atan2(T10, T00))
+
+
 #Load the file
 data = np.loadtxt('dataset/vio_dataset_1/groundtruth.txt')
 #Load timestamp, tx ty tz qx qy qz qw from second row on
 timestamp = data[1:, 0]
 
 with open('dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt', 'w') as f:
-    f.write('timestamp T00 T01 T02 T03 T10 T11 T12 T13 T20 T21 T22 T23 T30 T31 T32 T33\n')
+    f.write('# timestamp T00 T01 T02 T03 T10 T11 T12 T13 T20 T21 T22 T23 T30 T31 T32 T33\n')
 
 #Convert the quaternion to homogeneous matrix
 for i in range(1, data.shape[0]):
@@ -31,4 +36,20 @@ for i in range(1, data.shape[0]):
         for j in range(4):
             for k in range(4):
                 f.write(str(T[j, k]) + ' ')
+        f.write('\n')
+
+#Convert the homogeneous matrix to euler angles
+data = np.loadtxt('dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt')
+timestamp = data[1:, 0]
+
+with open('dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt', 'w') as f:
+    f.write('# timestamp tx ty tz theta_x theta_y theta_z\n')
+
+for i in range(1, data.shape[0]):
+    T00, T01, T02, T03, T10, T11, T12, T13, T20, T21, T22, T23, T30, T31, T32, T33 = data[i, 1]
+    T = homogeneous_to_euler(T00, T01, T02, T03, T10, T11, T12, T13, T20, T21, T22, T23, T30, T31, T32, T33)
+    with open('dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt', 'a') as f:
+        f.write(str(timestamp[i-1]) + ' ')
+        for j in range(6):
+                f.write(str(T[j]) + ' ')
         f.write('\n')
