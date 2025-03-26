@@ -200,6 +200,28 @@ class StereoProjection:
         Rt = np.hstack((self.R, self.t))  # Combine R and t
         self.P1 = self.K1 @ Rt  # P1 = K1 * [R | t]
 
+    #Function to calculate and visualize distortion correction
+    def undistort_image(self, image, camera_matrix, dist_coeffs, use_fisheye=False):
+        """
+        Undistort an image using the camera matrix and distortion coefficients.
+
+        :param image: The image to undistort.
+        :param camera_matrix: The camera matrix (intrinsic parameters).
+        :param dist_coeffs: The distortion coefficients.
+        :param use_fisheye: Boolean flag to indicate if fisheye model should be used.
+        :return: The undistorted image.
+        """
+        h, w = image.shape[:2]
+        if use_fisheye:
+            new_camera_matrix = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
+                camera_matrix, dist_coeffs, (w, h), np.eye(3), balance=1)
+            undistorted_image = cv2.fisheye.undistortImage(image, camera_matrix, dist_coeffs, Knew=new_camera_matrix)
+        else:
+            new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, (w, h), 1, (w, h))
+            undistorted_image = cv2.undistort(image, camera_matrix, dist_coeffs, None, new_camera_matrix)
+        return undistorted_image
+
+
     def triangulate_points(self, points_left, points_right, use_normalized_projection=False):
         """
         Triangulates 3D points from corresponding feature points in left and right images.
@@ -217,8 +239,8 @@ class StereoProjection:
         points_right = points_right.reshape(-1, 1, 2)
 
         # Undistort and normalize the points
-        points_left_norm = cv2.fisheye.undistortPoints(points_left, self.K0, self.dist_coeffs0, R=None)
-        points_right_norm = cv2.fisheye.undistortPoints(points_right, self.K1, self.dist_coeffs1, R=None)
+        points_left_norm = cv2.undistortPoints(points_left, self.K0, self.dist_coeffs0, R=None)
+        points_right_norm = cv2.undistortPoints(points_right, self.K1, self.dist_coeffs1, R=None)
 
         if use_normalized_projection:
             P0 = np.hstack((np.eye(3), np.zeros((3, 1))))  # Use identity matrix for intrinsics
@@ -358,6 +380,7 @@ def show_points(image1, points1, image2, points2, point_cloud):
     X = sorted_point_cloud[:, 0]
     Y = sorted_point_cloud[:, 1]
     Z = sorted_point_cloud[:, 2]
+
     
     # Plot each point with its corresponding color
     for i in range(len(X)):
@@ -365,6 +388,11 @@ def show_points(image1, points1, image2, points2, point_cloud):
     
     # Plot the origin (0, 0, 0) as a unique point
     ax3.scatter(0, 0, 0, c='k', marker='^', s=100, label='Origin')  # Black triangle
+
+    #visualize camera reference frame
+    ax3.plot([0, 100], [0, 0], [0, 0], c='r')
+    ax3.plot([0, 0], [0, 100], [0, 0], c='g')
+    ax3.plot([0, 0], [0, 0], [0, 100], c='k')
     
     # Set labels for the 3D plot
     ax3.set_xlabel('X')
@@ -379,11 +407,6 @@ def show_points(image1, points1, image2, points2, point_cloud):
     mid_z = (Z.max()+Z.min()) * 0.5
     ax3.set_xlim(mid_x - max_range, mid_x + max_range)
     ax3.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax3.set_zlim(mid_z - max_range, mid_z + max_range)
-
-    # Invert X-axis
-    ax3.set_xlim(mid_x - max_range, mid_x + max_range)  # Swapped order to invert
-    ax3.set_ylim(mid_y + max_range, mid_y - max_range)
     ax3.set_zlim(mid_z - max_range, mid_z + max_range)
     
     # Display the plot
@@ -545,6 +568,23 @@ if __name__ == "__main__":
 
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml")
 
+    #Visualize the undistorted images
+    left1_undistorted = StereoPair.undistort_image(left1, StereoPair.K0, StereoPair.dist_coeffs0, use_fisheye=True)
+    right1_undistorted = StereoPair.undistort_image(right1, StereoPair.K1, StereoPair.dist_coeffs1, use_fisheye=True)
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(121)
+    ax1.imshow(left1_undistorted, cmap="gray")
+    ax1.set_title("Undistorted Left Image")
+    ax1.axis("off")
+    
+    ax2 = fig.add_subplot(122)
+    ax2.imshow(right1_undistorted, cmap="gray")
+    ax2.set_title("Undistorted Right Image")
+    ax2.axis("off")
+
+    plt.show()
+
     pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
     points1 = StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
 
@@ -572,8 +612,6 @@ if __name__ == "__main__":
     print("\nNew Transformation Matrix (World to Current Frame):")
     T_world_to_current2 = update_camera_pose(transformation)
     print(T_world_to_current2)
-    
-
 
     """
     -0.630914015914675 0.7757556783140641 0.012273226385246232 7.60666536072954
