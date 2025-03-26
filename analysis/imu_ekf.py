@@ -1,7 +1,6 @@
-from pathlib import Path
 import numpy as np
 
-gravity = 9.81
+GRAVITY_M_PER_S_SQUARED = 9.81
 
 #   Goal: 
 #   Take in IMU Data for system dynamics prediction
@@ -17,16 +16,18 @@ class IMUKalmanFilter:
     def __init__(self, dt, initial_state, initial_covariance, process_noise, measurement_noise):
         self.dt = dt
         self.state = initial_state
-        self.P = np.eye(6) * initial_covariance
-        self.Q = np.eye(6) * process_noise
-        self.R = np.eye(6) * measurement_noise
+
+        self.num_states = 6
+        self.P = np.eye(self.num_states) * initial_covariance
+        self.Q = np.eye(self.num_states) * process_noise
+        self.R = np.eye(self.num_states) * measurement_noise
         
         self.K = 1
-        self.C = np.eye(6)
+        self.C = np.eye(self.num_states)
 
-        self.x_k = np.zeros(6) # [x, y, z, t_x, t_y, t_z]
+        self.x_k = np.zeros(self.num_states) # [x, y, z, t_x, t_y, t_z]
 
-        self.gravity = np.array([0, 0, -gravity])
+        self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
 
     def predict(self, dt, ang_vel: np.ndarray, lin_acc: np.ndarray):
         # Update dt
@@ -41,10 +42,10 @@ class IMUKalmanFilter:
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        self.euler_to_rotation_matrix(t_x, t_y, t_z)
+        drone_to_world_frame_matrix = self.euler_to_rotation_matrix(t_x, t_y, t_z)
 
         # Transfer the gyro vector to the world frame
-        gyro_world = self.drone_to_world_frame_matrix @ np.array([gyro_x, gyro_y, gyro_z])
+        gyro_world = drone_to_world_frame_matrix @ np.array([gyro_x, gyro_y, gyro_z])
 
         # Integrate the gyro vector to get the new orientation
         t_x += gyro_world[0] * self.dt
@@ -52,15 +53,15 @@ class IMUKalmanFilter:
         t_z += gyro_world[2] * self.dt
 
         # Transfer the acceleration vector to the world frame
-        acc_world = self.drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z]) - self.gravity
+        acc_world = drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z]) - self.gravity
 
         # Integrate the acceleration vector to get the new position
-        x += acc_world[0] * self.dt * self.dt
-        y += acc_world[1] * self.dt * self.dt
-        z += acc_world[2] * self.dt * self.dt
+        x += acc_world[0] * self.dt * self.dt / 2
+        y += acc_world[1] * self.dt * self.dt / 2
+        z += acc_world[2] * self.dt * self.dt / 2
 
         # Update the state
-        self.state = np.array([x, y, z, t_x, t_y, t_z])
+        self.state = np.array([x, y, z, t_x, t_y, t_z]).reshape(self.num_states, 1)
     
     def update(self, camera_measurments: np.ndarray):
         
@@ -72,7 +73,7 @@ class IMUKalmanFilter:
 
         self.K = self.P @ np.linalg.inv(self.C) @ np.linalg.inv((self.C @ self.P @ np.linalg.inv(self.C) + self.R))
         self.x_k = self.x_k + self.K * ( camera_measurments - self.state) # Not sure how to get the real output, z
-        self.P = (np.eye(6) - self.K @ self.C) @ self.P
+        self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
         # Convert euler angles to rotation matrix
@@ -84,17 +85,7 @@ class IMUKalmanFilter:
         cos_t_z = np.cos(t_z)
         sin_t_z = np.sin(t_z)
 
-        self.drone_to_world_frame_matrix = np.array([
+        return np.array([
             [cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
             [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
             [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
-
-
-
-
-
-
-
-
-
-
