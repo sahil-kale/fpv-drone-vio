@@ -19,7 +19,7 @@ data = np.loadtxt('dataset/vio_dataset_1/groundtruth.txt')
 timestamp = data[1:, 0]
 
 with open('dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt', 'w') as f:
-    f.write('timestamp tx ty tz qx qy qz qw\n')
+    f.write('timestamp T00 T01 T02 T03 T10 T11 T12 T13 T20 T21 T22 T23 T30 T31 T32 T33\n')
 
 #Convert the quaternion to homogeneous matrix
 for i in range(1, data.shape[0]):
