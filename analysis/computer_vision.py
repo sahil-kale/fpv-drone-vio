@@ -640,8 +640,8 @@ class VisionRelativeOdometryCalculator:
         self.current_feature_data = FeatureData(filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors)
     
     def isolate_common_matches(self):
-        matches1 = self.previous_feature_data.filtered_matches
-        matches2 = self.current_feature_data.filtered_matches
+        filtered_matches1 = self.previous_feature_data.filtered_matches
+        filtered_matches2 = self.current_feature_data.filtered_matches
 
         matches_between_frames = self.feature_matcher.match_features(self.previous_feature_data.left_descriptors,
                                                                      self.current_feature_data.left_descriptors)
