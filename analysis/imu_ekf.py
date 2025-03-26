@@ -1,5 +1,5 @@
 import numpy as np
-from interface import VisionAbsoluteOdometry, IMUInputFrame
+from interface import VisionAbsoluteOdometry, IMUInputFrame, euler_to_rotation_matrix
 
 GRAVITY_M_PER_S_SQUARED = 9.81
 
@@ -45,7 +45,7 @@ class IMUKalmanFilter:
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        drone_to_world_frame_matrix = self.euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 3)
+        drone_to_world_frame_matrix = euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 1)
 
         # Transfer the gyro vector to the world frame
         gyro_world = drone_to_world_frame_matrix @ (np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1))
@@ -80,18 +80,3 @@ class IMUKalmanFilter:
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
         self.state = self.state + self.K * ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
-
-    def euler_to_rotation_matrix(self, t_x, t_y, t_z):
-        # Convert euler angles to rotation matrix
-        # t_x is roll, t_y is pitch, t_z is yaw
-        cos_t_x = np.cos(t_x)
-        sin_t_x = np.sin(t_x)
-        cos_t_y = np.cos(t_y)
-        sin_t_y = np.sin(t_y)
-        cos_t_z = np.cos(t_z)
-        sin_t_z = np.sin(t_z)
-
-        return np.array([
-            [cos_t_y * cos_t_z, sin_t_x * sin_t_y * cos_t_z - cos_t_x * sin_t_z, cos_t_x * sin_t_y * cos_t_z + sin_t_x * sin_t_z],
-            [cos_t_y * sin_t_z, sin_t_x * sin_t_y * sin_t_z + cos_t_x * cos_t_z, cos_t_x * sin_t_y * sin_t_z - sin_t_x * cos_t_z],
-            [-sin_t_y, sin_t_x * cos_t_y, cos_t_x * cos_t_y]])
