@@ -14,7 +14,7 @@ GRAVITY_M_PER_S_SQUARED = 9.81
 #   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
 
 class IMUKalmanFilter:
-    def __init__(self, dt, initial_state, initial_covariance, process_noise, measurement_noise):
+    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray):
         self.dt = dt
         self.state = initial_state
 
@@ -23,8 +23,8 @@ class IMUKalmanFilter:
         self.Q = np.eye(self.num_states) * process_noise
         self.R = np.eye(self.num_states) * measurement_noise
         
-        self.K = 1
-        self.C = np.eye(self.num_states)
+        self.K = np.eye(self.num_states)
+        self.C = np.eye(self.num_states) #Measurement Model
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
 
@@ -76,7 +76,7 @@ class IMUKalmanFilter:
         measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
 
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
-        self.state = self.state + self.K * ( measurement_vector - self.state) # Not sure how to get the real output, z
+        self.state = self.state + self.K * ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
     def euler_to_rotation_matrix(self, t_x, t_y, t_z):
