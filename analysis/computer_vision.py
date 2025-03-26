@@ -640,8 +640,8 @@ class VisionRelativeOdometryCalculator:
         self.current_feature_data = FeatureData(filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors)
     
     def isolate_common_matches(self):
-        matches1 = self.previous_feature_data.filtered_matches
-        matches2 = self.current_feature_data.filtered_matches
+        filtered_matches1 = self.previous_feature_data.filtered_matches
+        filtered_matches2 = self.current_feature_data.filtered_matches
 
         matches_between_frames = self.feature_matcher.match_features(self.previous_feature_data.left_descriptors,
                                                                      self.current_feature_data.left_descriptors)
@@ -670,9 +670,8 @@ class VisionRelativeOdometryCalculator:
                         break
         
         return consistent_matches1, consistent_matches2
-
     
-    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame) -> interface.VisionRelativeOdometry:
+    def calculate_relative_odometry_homogenous(self, input_frame:interface.VisionInputFrame) -> np.ndarray:
         #Update the current feature data from the input images
         self.update_current_feature_data(input_frame)
 
@@ -693,7 +692,11 @@ class VisionRelativeOdometryCalculator:
 
         self.previous_feature_data = self.current_feature_data
 
-        return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(transformation)
+        return transformation
+    
+    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame) -> interface.VisionRelativeOdometry:
+        homo_transformation = self.calculate_relative_odometry(input_frame)
+        return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(homo_transformation)
 
 
 if __name__ == "__main__":
