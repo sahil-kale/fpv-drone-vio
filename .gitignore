@@ -179,3 +179,4 @@ build/
 .pio/
 logs/
 *Zone.Identifier
+.idea/
