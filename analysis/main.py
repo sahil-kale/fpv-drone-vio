@@ -24,16 +24,16 @@ if __name__ == '__main__':
     df = load_data()
     
     # Extract into arrays for timestamp (column 1), acceleration (columns 2-4), and angular velocity (columns 5-7)
-    timestamp = df[1]
+    imu_timestamp = df[1]
     acceleration = df.iloc[:, 5:8]
     angular_velocity = df.iloc[:, 2:5]
 
     # Convert into numpy arrays
-    timestamp = timestamp.to_numpy()[1:].astype(float)
+    imu_timestamp = imu_timestamp.to_numpy()[1:].astype(float)
     acceleration = acceleration.to_numpy()[1:].astype(float)
     angular_velocity = angular_velocity.to_numpy()[1:].astype(float)
 
-    imu_input_frames = develop_array_of_imu_input_frame(timestamp, acceleration, angular_velocity)
+    imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
 
     # Pass into the EKF
     initial_state = np.array([0, 0, 0, 0, 0, 0])
