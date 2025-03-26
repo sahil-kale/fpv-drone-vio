@@ -26,17 +26,18 @@ class IMUKalmanFilter:
         self.K = np.eye(self.num_states)
         self.C = np.eye(self.num_states) #Measurement Model
 
-        self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
+        self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data
-        ang_vel = imu_input_frame[:3]
-        lin_acc = imu_input_frame[3:]
+        ang_vel = imu_input_frame.get_gyro_data()
+        lin_acc = imu_input_frame.get_accel_data()
         # Update dt
         self.dt = dt
 
         # Extract state variables
         x, y, z, t_x, t_y, t_z = self.state
+
         gyro_x = ang_vel[0]
         gyro_y = ang_vel[1]
         gyro_z = ang_vel[2]
@@ -44,25 +45,26 @@ class IMUKalmanFilter:
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        drone_to_world_frame_matrix = self.euler_to_rotation_matrix(t_x, t_y, t_z)
+        drone_to_world_frame_matrix = self.euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 3)
 
         # Transfer the gyro vector to the world frame
-        gyro_world = drone_to_world_frame_matrix @ np.array([gyro_x, gyro_y, gyro_z])
-
+        gyro_world = drone_to_world_frame_matrix @ (np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1))
         # Integrate the gyro vector to get the new orientation
         t_x += gyro_world[0] * self.dt
         t_y += gyro_world[1] * self.dt
         t_z += gyro_world[2] * self.dt
 
-        # Transfer the acceleration vector to the world frame
-        acc_world = drone_to_world_frame_matrix @ np.array([acc_x, acc_y, acc_z]) - self.gravity
+        t_x.reshape(1, 1)
+        t_y.reshape(1, 1)
+        t_z.reshape(1, 1)
 
+        # Transfer the acceleration vector to the world frame
+        acc_world = drone_to_world_frame_matrix @ (np.array([acc_x, acc_y, acc_z]).reshape(3, 1)) - self.gravity
         # Integrate the acceleration vector to get the new position
         x += acc_world[0] * self.dt * self.dt / 2
         y += acc_world[1] * self.dt * self.dt / 2
         z += acc_world[2] * self.dt * self.dt / 2
 
-        # Update the state
         self.state = np.array([x, y, z, t_x, t_y, t_z]).reshape(self.num_states, 1)
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
