@@ -282,13 +282,16 @@ class StereoProjection:
         points_left = points_left.reshape(-1, 1, 2)
         points_right = points_right.reshape(-1, 1, 2)
 
+        # Normalize the undistorted points
+        points_left_normalized = cv2.convertPointsToHomogeneous(points_left).reshape(-1, 3).T
+        points_right_normalized = cv2.convertPointsToHomogeneous(points_right).reshape(-1, 3).T
+
         # Perform triangulation
-        points_4D = cv2.triangulatePoints(self.P0, self.P1, points_left, points_right)
+        points_4D = cv2.triangulatePoints(self.P0, self.P1, points_left_normalized[:2], points_right_normalized[:2])
 
-        # Convert from homogeneous to Euclidean coordinates
-        points_3D = points_4D[:3] / points_4D[3]
+        points_3D = points_4D[:3] / points_4D[3]  # Convert from homogeneous to Euclidean
+        return points_3D.T
 
-        return points_3D.T  # Return Nx3 array
 
     def plot_undistorted_points(self, points_left, points_right, image_left, image_right):
         """
@@ -489,9 +492,9 @@ def show_points(image1, points1, image2, points2, point_cloud):
     
     # Determine axis limits dynamically
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
-    ax3.set_xlim(0 - 300, 0 + 300)
-    ax3.set_ylim(0 - 300, 0 + 300)
-    ax3.set_zlim(0 - 300, 0 + 300)
+    ax3.set_xlim(0 - 20, 0 + 20)
+    ax3.set_ylim(0 - 20, 0 + 20)
+    ax3.set_zlim(0 - 20, 0 + 20)
     
     # Display the plot
     plt.tight_layout()
@@ -557,6 +560,11 @@ def find_transformation(src_points, dst_points):
     :param dst_points: Destination points (Nx3 array)
     :return: 4x4 transformation matrix
     """
+    # Filter out points that are behind the camera
+    valid_indices = (src_points[:, 2] > 0) & (dst_points[:, 2] > 0)
+    src_points = src_points[valid_indices]
+    dst_points = dst_points[valid_indices]
+    
     # Calculate centroids
     src_centroid = np.mean(src_points, axis=0)
     dst_centroid = np.mean(dst_points, axis=0)
@@ -683,12 +691,12 @@ if __name__ == "__main__":
     T_world_to_current2 = update_camera_pose(transformation)
     print(T_world_to_current2)
 
-    """
-    -0.630914015914675 0.7757556783140641 0.012273226385246232 7.60666536072954
-    -0.7758406136151782 -0.6307366795317234 -0.015575087753203145 0.246270702230251
-    -0.004341288707415834 -0.0193486086523643 0.9998033729466893 -0.880807258137499
-    0.0 0.0 0.0 1.0
-    """
+    true_second_position = np.array([
+    [-0.630914015914675, 0.7757556783140641, 0.012273226385246232, 7.60666536072954],
+    [-0.7758406136151782, -0.6307366795317234, -0.015575087753203145, 0.246270702230251],
+    [-0.004341288707415834, -0.0193486086523643, 0.9998033729466893, -0.880807258137499],
+    [0.0, 0.0, 0.0, 1.0]])
+    
     
     show_points(left1, pl1, right1, pr1, points1)
 
@@ -696,17 +704,29 @@ if __name__ == "__main__":
     points1_world = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.vstack((points1.T, np.ones(points1.shape[0])))))
     points1_world = points1_world[:3].T
 
-    #Get old camera pos in world coords
-    old_cam_pos = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.array([0, 0, 0, 1])))
+    # Get old camera pos in world coords
+    old_cam_pos = np.dot(T_world_to_current, np.array([0, 0, 0, 1]))
     old_cam_pos = old_cam_pos[:3]
 
-    #transform points2 to the new world frame
-    points2_world = np.dot(T_cam_imu0, np.dot(T_world_to_current2, np.vstack((points2.T, np.ones(points2.shape[0])))))
+    # Transform points2 to the new world frame
+    points2_world = np.dot(T_world_to_current2, np.vstack((points2.T, np.ones(points2.shape[0]))))
     points2_world = points2_world[:3].T
 
-    #Get new camera pos in world coords
-    new_cam_pos = np.dot(T_cam_imu0, np.dot(T_world_to_current2, np.array([0, 0, 0, 1])))
+    # Get new camera pos in world coords
+    new_cam_pos = np.dot(T_world_to_current2, np.array([0, 0, 0, 1]))
     new_cam_pos = new_cam_pos[:3]
+
+    true_cam_pos = np.dot(true_second_position, np.array([0, 0, 0, 1]))
+    true_cam_pos = true_cam_pos[:3]
+
+    #Find error between true second position and calculated second position
+    error = np.linalg.norm(true_second_position - T_world_to_current2)
+    print("Error between true second position and calculated second position: ", error)
+    #print deltas in x, y, and z between second position and known second position
+    print(f"Delta x: {true_cam_pos[0] - new_cam_pos[0]}")
+    print(f"Delta y: {true_cam_pos[1] - new_cam_pos[1]}")
+    print(f"Delta z: {true_cam_pos[2] - new_cam_pos[2]}")
+
 
     #plot the old points in the world frame in red, and the new ones in blue in the same plot
     fig = plt.figure()
