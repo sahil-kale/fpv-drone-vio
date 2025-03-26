@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import yaml
 import matplotlib.pyplot as plt
 
+
 #Load left and right images
 def load_images(input:interface.VisionInputFrame):
     left_image = cv2.imread(input.get_image_left_path())
@@ -598,6 +599,103 @@ def update_camera_pose(T_relative):
     T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
     return T_world_to_current
 
+class FeatureData:
+    def __init__(self, filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors):
+        self.filtered_matches = filtered_matches
+        self.left_keypoints = left_keypoints
+        self.left_descriptors = left_descriptors
+        self.right_keypoints = right_keypoints
+        self.right_descriptors = right_descriptors
+
+class VisionRelativeOdometryCalculator:
+    """
+    Pass this a stream of VisionInputFrames and it will calculate the relative odometry between each pair of frames.
+    Notes:
+    * Need to keep track previous previous L&R filtered matches
+    * Need to keep track of previous previous L&R keypoints
+    * Need to keep track of previous previous L descriptors (might as well keep track of previous R descriptors as well)
+    * 
+    """
+    
+    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter):
+        self.feature_extractor = feature_extractor
+        self.feature_matcher = feature_matcher
+        self.feature_match_filter = feature_match_filter
+        self.current_feature_data = None
+        self.previous_feature_data = None
+        self.update_current_feature_data(initial_camera_input)
+        self.previous_feature_data = self.current_feature_data
+        self.StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
+    
+    def update_current_feature_data(self, input:interface.VisionInputFrame):
+        left_image, right_image = load_images(input)
+        left_preprocessed, right_preprocessed = preprocess_images(left_image, right_image)
+        
+        left_keypoints, left_descriptors = self.feature_extractor.extract_features(left_preprocessed)
+        right_keypoints, right_descriptors = self.feature_extractor.extract_features(right_preprocessed)
+
+        matches = self.feature_matcher.match_features(left_descriptors, right_descriptors)
+        filtered_matches = self.feature_match_filter.filter_matches(matches, left_keypoints, right_keypoints)
+
+        self.current_feature_data = FeatureData(filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors)
+    
+    def isolate_common_matches(self):
+        matches1 = self.previous_feature_data.filtered_matches
+        matches2 = self.current_feature_data.filtered_matches
+
+        matches_between_frames = self.feature_matcher.match_features(self.previous_feature_data.left_descriptors,
+                                                                     self.current_feature_data.left_descriptors)
+        filtered_matches_between_frames = self.feature_match_filter.filter_matches(matches_between_frames,
+                                                                                   self.previous_feature_data.left_keypoints,
+                                                                                   self.current_feature_data.left_keypoints)
+        matches_dict = {}
+        for m in filtered_matches_between_frames:
+            idx1 = m.queryIdx  # Index in frame 1 left image
+            idx2 = m.trainIdx  # Index in frame 2 left image
+            matches_dict[idx1] = idx2
+
+        # Filter to keep only matches present in all four images
+        consistent_matches1 = []
+        consistent_matches2 = []
+        
+        for m1 in filtered_matches1:
+            left_idx = m1.queryIdx
+            if left_idx in matches_dict:  # If this point has a match in frame 2
+                frame2_left_idx = matches_dict[left_idx]
+                # Find corresponding match in filtered_matches2
+                for m2 in filtered_matches2:
+                    if m2.queryIdx == frame2_left_idx:
+                        consistent_matches1.append(m1)
+                        consistent_matches2.append(m2)
+                        break
+        
+        return consistent_matches1, consistent_matches2
+
+    
+    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame) -> interface.VisionRelativeOdometry:
+        #Update the current feature data from the input images
+        self.update_current_feature_data(input_frame)
+
+        #Isolate the common matches between the current and previous frames
+        consistent_matches1, consistent_matches2 = self.isolate_common_matches()
+
+        pl1, pr1 = extract_points_from_matches(consistent_matches1,
+                                               self.previous_feature_data.left_keypoints,
+                                               self.previous_feature_data.right_keypoints)
+        points1 = self.StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
+
+        pl1, pr1 = extract_points_from_matches(consistent_matches2,
+                                        self.current_feature_data.left_keypoints,
+                                        self.current_feature_data.right_keypoints)
+        points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
+
+        transformation = find_transformation(points1, points2)
+
+        self.previous_feature_data = self.current_feature_data
+
+        return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(transformation)
+
+
 if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
     frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
@@ -609,6 +707,7 @@ if __name__ == "__main__":
     left1_gs, right1_gs = preprocess_images(left1, right1)
     left2_gs, right2_gs = preprocess_images(left2, right2)
 
+    #Comment for navigation - will delete
     # ORB doesn't work without transforming the uint8 descriptors to uint32
     # SIFT and AKAZE return uint32s by default
     extractor = SIFTFeatureExtractor()
