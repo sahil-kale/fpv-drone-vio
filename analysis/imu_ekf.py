@@ -29,7 +29,10 @@ class IMUKalmanFilter:
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED])
 
-    def predict(self, dt, ang_vel: np.ndarray, lin_acc: np.ndarray):
+    def predict(self, dt, imu_input_frame: np.ndarray):
+        # Extract IMU data
+        ang_vel = imu_input_frame[:3]
+        lin_acc = imu_input_frame[3:]
         # Update dt
         self.dt = dt
 
@@ -71,7 +74,7 @@ class IMUKalmanFilter:
         # X_k|k = x_k|k-1 + K * (z_k - z_k|k-1)
         # P_k,k = (I - KC)P_k|k-1
 
-        self.K = self.P @ np.linalg.inv(self.C) @ np.linalg.inv((self.C @ self.P @ np.linalg.inv(self.C) + self.R))
+        self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
         self.x_k = self.x_k + self.K * ( camera_measurments - self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
