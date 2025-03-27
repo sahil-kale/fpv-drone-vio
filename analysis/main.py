@@ -18,7 +18,7 @@ def develop_array_of_imu_input_frame(timestamp, acceleration, angular_velocity):
     # Create an array of IMUInputFrame objects
     imu_input_frames = []
     for i in range(len(timestamp)):
-        imu_input_frames.append(IMUInputFrame(acceleration[i], angular_velocity[i]))
+        imu_input_frames.append(IMUInputFrame(angular_velocity[i], acceleration[i]))
     return imu_input_frames
 
 def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFDroneState]:
@@ -37,23 +37,6 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
 
 # Main
 if __name__ == '__main__':
-    imu_path = os.getcwd() + '/dataset/vio_dataset_1/imu.txt'
-    df_imu = load_data(imu_path)
-
-    NUM_SAMPLES_TO_IGNORE = 500
-    
-    # Extract into arrays for timestamp (column 1), acceleration (columns 2-4), and angular velocity (columns 5-7)
-    imu_timestamp = df_imu[1]
-    acceleration = df_imu.iloc[:, 5:8]
-    angular_velocity = df_imu.iloc[:, 2:5]
-
-    # Convert into numpy arrays
-    imu_timestamp = imu_timestamp.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
-    acceleration = acceleration.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
-    angular_velocity = angular_velocity.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
-
-    imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
-
     df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
     # Extract into arrays for timestamp (column 1), position (columns 2-4), and orientation quaternion (columns 5-8)
     gt_timestamp = df_ground_truth[0]
@@ -61,12 +44,41 @@ if __name__ == '__main__':
     gt_orientation = df_ground_truth.iloc[:, 4:8]
 
     # Convert into numpy arrays
-    gt_timestamp = gt_timestamp.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
-    gt_position = gt_position.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
-    gt_orientation = gt_orientation.to_numpy()[NUM_SAMPLES_TO_IGNORE:].astype(float)
+    gt_timestamp = gt_timestamp.to_numpy()[1:].astype(float)
+    gt_position = gt_position.to_numpy()[1:].astype(float)
+    gt_orientation = gt_orientation.to_numpy()[1:].astype(float)
 
     # Convert into array of EKFDroneState objects
     gt_states = develop_array_of_ground_truth(gt_timestamp, gt_position, gt_orientation)
+
+    imu_path = os.getcwd() + '/dataset/vio_dataset_1/imu.txt'
+    df_imu = load_data(imu_path)
+    
+    # Extract into arrays for timestamp (column 1), acceleration (columns 2-4), and angular velocity (columns 5-7)
+    imu_timestamp = df_imu[1]
+    angular_velocity = df_imu.iloc[:, 2:5]
+    acceleration = df_imu.iloc[:, 5:8]
+
+    # Convert into numpy arrays
+    imu_timestamp = imu_timestamp.to_numpy()[1:].astype(float)
+    acceleration = acceleration.to_numpy()[1:].astype(float)
+    angular_velocity = angular_velocity.to_numpy()[1:].astype(float)
+
+    imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
+
+    
+    # IMU and CAM data start recording earlier than GT data
+    index_at_which_imu_data_is_synced = 0
+    for i, timestamp in enumerate(imu_timestamp):
+        if timestamp >= gt_timestamp[0]:
+            index_at_which_imu_data_is_synced = i
+            break
+    
+    imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
+
+    NUM_FRAMES_TO_IGNORE = 500
+    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:]
+    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:]
 
     # Pass into the EKF
     initial_state = gt_states[0].state
@@ -75,7 +87,6 @@ if __name__ == '__main__':
     measurement_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
 
     dt = 0.002
-
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise)
 
     ekf_states = []

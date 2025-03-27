@@ -39,6 +39,20 @@ class IMUInputFrame:
     def get_accel_data(self) -> np.ndarray:
         return self.accel_data
     
+    def __str__(self):
+        repr = f"""
+        IMUInputFrame:
+        Gyro data: 
+        x: {self.get_gyro_data()[0]}
+        y: {self.get_gyro_data()[1]}
+        z: {self.get_gyro_data()[2]}
+        Accel data:
+        x: {self.get_accel_data()[0]}
+        y: {self.get_accel_data()[1]}
+        z: {self.get_accel_data()[2]}
+        """
+        return repr
+    
 class VisionInputFrame:
     def __init__(self, image_path_left: str, image_path_right: str):
         self.image_left = image_path_left
