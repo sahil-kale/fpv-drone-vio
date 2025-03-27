@@ -24,7 +24,8 @@ class IMUKalmanFilter:
         self.R = np.eye(self.num_states) * measurement_noise
         
         self.K = np.eye(self.num_states)
-        self.C = np.eye(self.num_states) #Measurement Model
+        self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
+        self.C[2:5][:] = 0 #Remove Velocity Components from output vector   
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
@@ -36,7 +37,7 @@ class IMUKalmanFilter:
         self.dt = dt
 
         # Extract state variables
-        x, y, z, t_x, t_y, t_z = self.state
+        x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
 
         gyro_x = ang_vel[0]
         gyro_y = ang_vel[1]
@@ -44,6 +45,7 @@ class IMUKalmanFilter:
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
+
 
         drone_to_world_frame_matrix = euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 3)
 
@@ -65,7 +67,11 @@ class IMUKalmanFilter:
         y += acc_world[1] * self.dt * self.dt / 2
         z += acc_world[2] * self.dt * self.dt / 2
 
-        self.state = np.array([x, y, z, t_x, t_y, t_z]).reshape(self.num_states, 1)
+        v_x += acc_world[0] * self.dt
+        v_y += acc_world[1] * self.dt
+        v_z += acc_world[2] * self.dt
+
+        self.state = np.array([x, y, z, v_x, v_y, v_z, t_x, t_y, t_z]).reshape(self.num_states, 1)
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
         
