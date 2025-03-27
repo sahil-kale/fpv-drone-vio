@@ -16,7 +16,7 @@ def convert_to_homogeneous(tx, ty, tz, qx, qy, qz, qw):
 def quaternion_to_euler(qx, qy, qz, qw):
     """Convert quaternion (qx, qy, qz, qw) to Euler angles (roll, pitch, yaw)."""
     rot = R.from_quat([qx, qy, qz, qw])
-    return rot.as_euler('xyz', degrees=True)
+    return rot.as_euler('xyz', degrees=False)
 
 if __name__ == '__main__':
     #Load the file
