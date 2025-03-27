@@ -1,5 +1,5 @@
 import numpy as np
-from interface import VisionAbsoluteOdometry, IMUInputFrame, euler_to_rotation_matrix
+from interface import VisionAbsoluteOdometry, IMUInputFrame, euler_to_rotation_matrix, EKFDroneState
 
 GRAVITY_M_PER_S_SQUARED = 9.81
 
@@ -45,7 +45,7 @@ class IMUKalmanFilter:
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        drone_to_world_frame_matrix = euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 1)
+        drone_to_world_frame_matrix = euler_to_rotation_matrix(t_x, t_y, t_z).reshape(3, 3)
 
         # Transfer the gyro vector to the world frame
         gyro_world = drone_to_world_frame_matrix @ (np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1))
@@ -80,3 +80,6 @@ class IMUKalmanFilter:
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
         self.state = self.state + self.K * ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
+
+    def get_state(self) -> EKFDroneState:
+        return EKFDroneState(self.state.reshape(-1))
