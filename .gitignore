@@ -180,3 +180,5 @@ build/
 logs/
 *Zone.Identifier
 .idea/
+
+__pycache__/*
