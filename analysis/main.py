@@ -29,7 +29,8 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
         quaternion_vec = np.array([orientation[i][0], orientation[i][1], orientation[i][2], orientation[i][3]])
         # Convert quaternion to Euler angles
         euler_vec = quaternion_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
-        combined_state_vec = np.concatenate((position_vec, euler_vec)).reshape(-1)
+        velocity_vec = np.array([0,0,0])
+        combined_state_vec = np.concatenate((position_vec, velocity_vec, euler_vec)).reshape(-1)
         # Create EKFDroneState object
         gt_states.append(EKFDroneState(combined_state_vec))
 
@@ -82,12 +83,14 @@ if __name__ == '__main__':
 
     # Pass into the EKF
     initial_state = gt_states[0].state
-    initial_covariance = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-    process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-    measurement_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
 
+    initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
+    process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
+    measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
+
+    NUM_STATES = 9
     dt = 0.002
-    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise)
+    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES)
 
     ekf_states = []
 

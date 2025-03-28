@@ -14,11 +14,11 @@ GRAVITY_M_PER_S_SQUARED = 9.81
 #   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
 
 class IMUKalmanFilter:
-    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray):
+    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states):
         self.dt = dt
         self.state = initial_state
 
-        self.num_states = 6
+        self.num_states = num_states
         self.P = np.eye(self.num_states) * initial_covariance
         self.Q = np.eye(self.num_states) * process_noise
         self.R = np.eye(self.num_states) * measurement_noise

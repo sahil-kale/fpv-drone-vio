@@ -3,7 +3,7 @@ import numpy as np
 class EKFDroneState:
     def __init__(self, initial_state: np.ndarray):
         self.state = initial_state
-        assert self.state.shape == (6,), f"State vector must be of shape (6,), got {self.state.shape}"
+        assert self.state.shape == (9,), f"State vector must be of shape (6,), got {self.state.shape}"
 
     def get_state(self) -> np.ndarray:
         return self.state
@@ -12,7 +12,7 @@ class EKFDroneState:
         return self.state[:3]
     
     def get_world_orientation(self) -> np.ndarray:
-        return self.state[3:6]
+        return self.state[6:]
     
     def __str__(self):
         repr = f"""
