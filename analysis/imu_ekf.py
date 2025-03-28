@@ -63,15 +63,15 @@ class IMUKalmanFilter:
         # Transfer the acceleration vector to the world frame
         acc_world = drone_to_world_frame_matrix @ (np.array([acc_x, acc_y, acc_z]).reshape(3, 1)) - self.gravity
         # Integrate the acceleration vector to get the new position
-        x += v_x[0] * self.dt
-        y += v_y[1] * self.dt
-        z += v_z[2] * self.dt
+        x += v_x * self.dt
+        y += v_y * self.dt
+        z += v_z * self.dt
 
         v_x += acc_world[0] * self.dt
         v_y += acc_world[1] * self.dt
         v_z += acc_world[2] * self.dt
 
-        self.state = np.array([x, y, z, v_x, v_y, v_z, t_x, t_y, t_z]).reshape(self.num_states, 1)
+        self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
         
