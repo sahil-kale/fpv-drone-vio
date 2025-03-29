@@ -5,6 +5,7 @@ from interface import IMUInputFrame, VisionInputFrame, VisionRelativeOdometry, V
 from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
+from util import conditional_breakpoint
 
 # Need to implement data ingestion and data processing here
 
@@ -18,7 +19,7 @@ def develop_array_of_imu_input_frame(timestamp, acceleration, angular_velocity):
     # Create an array of IMUInputFrame objects
     imu_input_frames = []
     for i in range(len(timestamp)):
-        imu_input_frames.append(IMUInputFrame(angular_velocity[i], acceleration[i]))
+        imu_input_frames.append(IMUInputFrame(angular_velocity[i], acceleration[i], timestamp[i]))
     return imu_input_frames
 
 def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFDroneState]:
@@ -36,8 +37,24 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
 
     return gt_states
 
+def develop_array_of_vision_input_frame(dataset_dir, timestamp, image_path_left, image_path_right):
+    # Create an array of VisionInputFrame objects
+    vision_input_frames = []
+    for i in range(len(timestamp)):
+        vision_input_frames.append(VisionInputFrame(dataset_dir + image_path_left[i], dataset_dir + image_path_right[i], timestamp[i]))
+    return vision_input_frames
+
+def estimate_gyro_bias(imu_input_frames):
+    gyro_bias = np.zeros(3)
+    for imu_input_frame in imu_input_frames:
+        gyro_data = imu_input_frame.get_gyro_data()
+        gyro_bias += gyro_data
+    return gyro_bias / len(imu_input_frames)
+
 # Main
 if __name__ == '__main__':
+    DATASET_DIR = os.getcwd() + '/dataset/vio_dataset_1/'
+
     df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
     # Extract into arrays for timestamp (column 1), position (columns 2-4), and orientation quaternion (columns 5-8)
     gt_timestamp = df_ground_truth[0]
@@ -52,7 +69,7 @@ if __name__ == '__main__':
     # Convert into array of EKFDroneState objects
     gt_states = develop_array_of_ground_truth(gt_timestamp, gt_position, gt_orientation)
 
-    imu_path = os.getcwd() + '/dataset/vio_dataset_1/imu.txt'
+    imu_path = DATASET_DIR + 'imu.txt'
     df_imu = load_data(imu_path)
     
     # Extract into arrays for timestamp (column 1), acceleration (columns 2-4), and angular velocity (columns 5-7)
@@ -67,6 +84,14 @@ if __name__ == '__main__':
 
     imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
 
+    img_paths_left_txt_file = DATASET_DIR + 'left_images.txt'
+    img_paths_right_txt_file = DATASET_DIR + 'right_images.txt'
+    df_img_paths_left = load_data(img_paths_left_txt_file)
+    df_img_paths_right = load_data(img_paths_right_txt_file)
+    image_timestamps = df_img_paths_left[1].to_numpy()[1:].astype(float)
+    image_paths_left = df_img_paths_left.iloc[:, 2].tolist()[1:]
+    image_paths_right = df_img_paths_right.iloc[:, 2].tolist()[1:]
+    vision_input_frames = develop_array_of_vision_input_frame(DATASET_DIR, image_timestamps, image_paths_left, image_paths_right)
     
     # IMU and CAM data start recording earlier than GT data
     index_at_which_imu_data_is_synced = 0
@@ -78,8 +103,10 @@ if __name__ == '__main__':
     imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
-    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:]
-    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:]
+    NUM_FRAMES_TO_PLOT = 2000
+    gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
+    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
+    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
 
     # Pass into the EKF
     initial_state = gt_states[0].state
@@ -90,15 +117,14 @@ if __name__ == '__main__':
 
     NUM_STATES = 9
     dt = 0.002
-    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES)
-
+    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
-    for imu_input_frame in imu_input_frames:
+    for i, imu_input_frame in enumerate(imu_input_frames):
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
     
-    visualizer = Visualizer(ekf_states, None, gt_states, None)
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, image_timestamps, vision_input_frames, )
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
 
 

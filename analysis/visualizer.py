@@ -1,15 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from converting_quaternion import euler_to_rotation_matrix
 from interface import *
 import matplotlib.animation as animation
 
 class Visualizer:
-    def __init__(self, states: EKFDroneState, state_timeseries: np.ndarray, ground_truth: EKFDroneState, ground_truth_timeseries: np.ndarray):
+    def __init__(self, states: EKFDroneState, ground_truth: EKFDroneState, state_timeseries: np.ndarray, vision_input_frames: VisionInputFrame, vision_state_timeseries: np.ndarray):
         self.states = states
         self.state_timeseries = state_timeseries
         self.ground_truth = ground_truth
-        self.ground_truth_timeseries = ground_truth_timeseries
-    
+        self.vision_input_frames = vision_input_frames
+        self.vision_state_timeseries = vision_state_timeseries
+
     def plot_3d_coordinate_axes(self, ax, state: EKFDroneState, color_strs: list = ['r', 'g', 'b']):
         origin = state.get_world_position()
         quiver_length = 0.5
@@ -51,15 +53,15 @@ class Visualizer:
         all_positions = est_positions
         if plot_ground_truth:
             all_positions = np.vstack((est_positions, gt_positions))
-        min_vals = np.min(all_positions, axis=0) - 0.1
-        max_vals = np.max(all_positions, axis=0) + 0.1
+        starting_point = est_positions[0]
+        min_vals = np.min(all_positions, axis=0) - 0.1 - np.array(starting_point).reshape(-1)
+        max_vals = np.max(all_positions, axis=0) + 0.1 - np.array(starting_point).reshape(-1)
 
         global_min = np.min(min_vals)
         global_max = np.max(max_vals)
-        ax.set_xlim(global_min, global_max)
-        ax.set_ylim(global_min, global_max)
-        ax.set_zlim(global_min, global_max)
-
+        ax.set_xlim(global_min + starting_point[0], global_max + starting_point[0])
+        ax.set_ylim(global_min + starting_point[1], global_max + starting_point[1])
+        ax.set_zlim(global_min + starting_point[2], global_max + starting_point[2])
 
         ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio
         
@@ -92,7 +94,7 @@ class Visualizer:
 
             return est_quiver_artists + gt_quiver_artists
 
-        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=1, blit=False)
+        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=0.1, blit=False)
         ax.legend()
         plt.show()
 
