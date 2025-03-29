@@ -102,7 +102,7 @@ if __name__ == '__main__':
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
-    for imu_input_frame in imu_input_frames:
+    for i, imu_input_frame in enumerate(imu_input_frames):
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
     
