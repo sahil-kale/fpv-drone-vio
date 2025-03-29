@@ -51,14 +51,15 @@ class Visualizer:
         all_positions = est_positions
         if plot_ground_truth:
             all_positions = np.vstack((est_positions, gt_positions))
-        min_vals = np.min(all_positions, axis=0) - 0.1
-        max_vals = np.max(all_positions, axis=0) + 0.1
+        starting_point = est_positions[0]
+        min_vals = np.min(all_positions, axis=0) - 0.1 - np.array(starting_point).reshape(-1)
+        max_vals = np.max(all_positions, axis=0) + 0.1 - np.array(starting_point).reshape(-1)
 
         global_min = np.min(min_vals)
         global_max = np.max(max_vals)
-        ax.set_xlim(global_min, global_max)
-        ax.set_ylim(global_min, global_max)
-        ax.set_zlim(global_min, global_max)
+        ax.set_xlim(global_min + starting_point[0], global_max + starting_point[0])
+        ax.set_ylim(global_min + starting_point[1], global_max + starting_point[1])
+        ax.set_zlim(global_min + starting_point[2], global_max + starting_point[2])
 
 
         ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio
