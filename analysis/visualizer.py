@@ -12,7 +12,7 @@ class Visualizer:
     
     def plot_3d_coordinate_axes(self, ax, state: EKFDroneState, color_strs: list = ['r', 'g', 'b']):
         origin = state.get_world_position()
-        quiver_length = 0.1
+        quiver_length = 0.5
         quiver_matrix = np.eye(3) * quiver_length
         tx, ty, tz = state.get_world_orientation()
         quiver_matrix = euler_to_rotation_matrix(tx, ty, tz) @ quiver_matrix
@@ -92,7 +92,7 @@ class Visualizer:
 
             return est_quiver_artists + gt_quiver_artists
 
-        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=100, blit=False)
+        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=1, blit=False)
         ax.legend()
         plt.show()
 

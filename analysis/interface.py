@@ -3,7 +3,7 @@ import numpy as np
 class EKFDroneState:
     def __init__(self, initial_state: np.ndarray):
         self.state = initial_state
-        assert self.state.shape == (6,), "State vector must be of shape (6,)"
+        assert self.state.shape == (9,), f"State vector must be of shape (9,), got {self.state.shape}"
 
     def get_state(self) -> np.ndarray:
         return self.state
@@ -12,7 +12,7 @@ class EKFDroneState:
         return self.state[:3]
     
     def get_world_orientation(self) -> np.ndarray:
-        return self.state[3:6]
+        return self.state[6:]
     
     def __str__(self):
         repr = f"""
@@ -38,6 +38,20 @@ class IMUInputFrame:
     
     def get_accel_data(self) -> np.ndarray:
         return self.accel_data
+    
+    def __str__(self):
+        repr = f"""
+        IMUInputFrame:
+        Gyro data: 
+        x: {self.get_gyro_data()[0]}
+        y: {self.get_gyro_data()[1]}
+        z: {self.get_gyro_data()[2]}
+        Accel data:
+        x: {self.get_accel_data()[0]}
+        y: {self.get_accel_data()[1]}
+        z: {self.get_accel_data()[2]}
+        """
+        return repr
     
 class VisionInputFrame:
     def __init__(self, image_path_left: str, image_path_right: str):
