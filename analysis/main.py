@@ -103,20 +103,20 @@ if __name__ == '__main__':
     imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
     imu_timestamp = imu_timestamp[index_at_which_imu_data_is_synced:]
 
-    index_at_which_vision_data_is_synced = 0
-    for i, timestamp in enumerate(image_timestamps):
-        if timestamp >= gt_timestamp[0]:
-            index_at_which_vision_data_is_synced = i
-            break
-    vision_input_frames = vision_input_frames[index_at_which_vision_data_is_synced:]
-    image_timestamps = image_timestamps[index_at_which_vision_data_is_synced:]
-
     NUM_FRAMES_TO_IGNORE = 500
     NUM_FRAMES_TO_PLOT = 3000
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
+
+    index_at_which_vision_data_is_synced = 0
+    for i, timestamp in enumerate(image_timestamps):
+        if timestamp >= imu_timestamp[0]:
+            index_at_which_vision_data_is_synced = i
+            break
+    vision_input_frames = vision_input_frames[index_at_which_vision_data_is_synced:]
+    image_timestamps = image_timestamps[index_at_which_vision_data_is_synced:]
 
     # Pass into the EKF
     initial_state = gt_states[0].state
