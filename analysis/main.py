@@ -5,6 +5,7 @@ from interface import IMUInputFrame, VisionInputFrame, VisionRelativeOdometry, V
 from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
+from util import conditional_breakpoint
 
 # Need to implement data ingestion and data processing here
 
@@ -78,8 +79,9 @@ if __name__ == '__main__':
     imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
-    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:]
-    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:]
+    NUM_FRAMES_TO_PLOT = 5000
+    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
+    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
 
     # Pass into the EKF
     initial_state = gt_states[0].state

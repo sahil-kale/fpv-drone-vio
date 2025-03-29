@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from converting_quaternion import euler_to_rotation_matrix
 from interface import *
 import matplotlib.animation as animation
 
@@ -93,7 +94,7 @@ class Visualizer:
 
             return est_quiver_artists + gt_quiver_artists
 
-        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=1, blit=False)
+        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=0.1, blit=False)
         ax.legend()
         plt.show()
 
