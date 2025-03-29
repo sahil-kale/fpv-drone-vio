@@ -61,7 +61,7 @@ class IMUKalmanFilter:
         t_z.reshape(1, 1)
 
         # Transfer the acceleration vector to the world frame
-        acc_world = drone_to_world_frame_matrix @ (np.array([acc_x, acc_y, acc_z]).reshape(3, 1)) - self.gravity
+        acc_world = drone_to_world_frame_matrix @ (np.array([acc_x, acc_y, acc_z]).reshape(3, 1)) + self.gravity
         # Integrate the acceleration vector to get the new position
         x += v_x * self.dt
         y += v_y * self.dt
