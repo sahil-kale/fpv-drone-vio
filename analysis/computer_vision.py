@@ -631,8 +631,8 @@ class VisionRelativeOdometryCalculator:
         left_image, right_image = load_images(input)
         left_preprocessed, right_preprocessed = preprocess_images(left_image, right_image)
         
-        left_keypoints, left_descriptors = self.feature_extractor.extract_features(left_preprocessed)
-        right_keypoints, right_descriptors = self.feature_extractor.extract_features(right_preprocessed)
+        left_keypoints, left_descriptors = self.feature_extractor.extract_features(self=self.feature_extractor, image=left_preprocessed)
+        right_keypoints, right_descriptors = self.feature_extractor.extract_features(self=self.feature_extractor, image=right_preprocessed)
 
         matches = self.feature_matcher.match_features(left_descriptors, right_descriptors)
         filtered_matches = self.feature_match_filter.filter_matches(matches, left_keypoints, right_keypoints)
@@ -703,7 +703,11 @@ if __name__ == "__main__":
     # load in a stereo pair and two sequential flames
     frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
     frame2 = interface.VisionInputFrame("analysis/image_0_1.png", "analysis/image_1_1.png")
+    #
+    test1 = VisionRelativeOdometryCalculator(frame1, SIFTFeatureExtractor, FLANNMatcher, RANSACFilter)
+    relative_frame = test1.calculate_relative_odometry(frame2)
 
+    # old loop
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
 
