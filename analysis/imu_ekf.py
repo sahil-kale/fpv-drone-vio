@@ -16,7 +16,7 @@ GRAVITY_M_PER_S_SQUARED = 9.81
 #   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
 
 class IMUKalmanFilter:
-    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states):
+    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states, gyro_bias: np.ndarray):
         self.dt = dt
         self.state = initial_state
 
@@ -32,6 +32,7 @@ class IMUKalmanFilter:
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
         self.imu_to_drone_rotation_matrix = elementary_rotation_matrix_x(np.pi)
+        self.gyro_bias = gyro_bias.reshape(3, 1)
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data
@@ -43,9 +44,9 @@ class IMUKalmanFilter:
         # Extract state variables
         x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
 
-        gyro_x = ang_vel[0]
-        gyro_y = ang_vel[1]
-        gyro_z = ang_vel[2]
+        gyro_x = ang_vel[0] - self.gyro_bias[0]
+        gyro_y = ang_vel[1] - self.gyro_bias[1]
+        gyro_z = ang_vel[2] - self.gyro_bias[2]
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
@@ -78,9 +79,7 @@ class IMUKalmanFilter:
         v_x += acc_world[0] * self.dt
         v_y -= acc_world[1] * self.dt
         v_z -= acc_world[2] * self.dt
-
-        #conditional_breakpoint(2, "imu")
-
+        
         self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):

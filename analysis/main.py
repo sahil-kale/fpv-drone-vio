@@ -37,6 +37,13 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
 
     return gt_states
 
+def estimate_gyro_bias(imu_input_frames):
+    gyro_bias = np.zeros(3)
+    for imu_input_frame in imu_input_frames:
+        gyro_data = imu_input_frame.get_gyro_data()
+        gyro_bias += gyro_data
+    return gyro_bias / len(imu_input_frames)
+
 # Main
 if __name__ == '__main__':
     df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
@@ -67,7 +74,6 @@ if __name__ == '__main__':
     angular_velocity = angular_velocity.to_numpy()[1:].astype(float)
 
     imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
-
     
     # IMU and CAM data start recording earlier than GT data
     index_at_which_imu_data_is_synced = 0
@@ -80,6 +86,7 @@ if __name__ == '__main__':
 
     NUM_FRAMES_TO_IGNORE = 500
     NUM_FRAMES_TO_PLOT = 2000
+    gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
 
@@ -92,8 +99,7 @@ if __name__ == '__main__':
 
     NUM_STATES = 9
     dt = 0.002
-    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES)
-
+    ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
     for imu_input_frame in imu_input_frames:
