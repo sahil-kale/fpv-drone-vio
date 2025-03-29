@@ -31,7 +31,7 @@ class IMUKalmanFilter:
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
-        self.imu_to_drone_rotation_matrix = np.eye(3) * elementary_rotation_matrix_x(np.pi)
+        self.imu_to_drone_rotation_matrix = elementary_rotation_matrix_x(np.pi)
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data

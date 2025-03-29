@@ -79,7 +79,7 @@ if __name__ == '__main__':
     imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
-    NUM_FRAMES_TO_PLOT = 5000
+    NUM_FRAMES_TO_PLOT = 2000
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
 
