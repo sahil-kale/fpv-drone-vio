@@ -77,8 +77,8 @@ class IMUKalmanFilter:
         z += v_z * self.dt
 
         v_x += acc_world[0] * self.dt
-        v_y -= acc_world[1] * self.dt
-        v_z -= acc_world[2] * self.dt
+        v_y += acc_world[1] * self.dt
+        v_z += acc_world[2] * self.dt
         
         self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
     
