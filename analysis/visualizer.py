@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import matplotlib.image as mpimg  # For reading image paths
+import cv2
 from converting_quaternion import euler_to_rotation_matrix
 from interface import VisionInputFrame, EKFDroneState
 
@@ -50,12 +50,10 @@ class Visualizer:
         if plot_ground_truth:
             ax_traj.plot(gt_positions[:, 0], gt_positions[:, 1], gt_positions[:, 2], label='Ground Truth', color='orange')
 
-        all_positions = est_positions
-        if plot_ground_truth:
-            all_positions = np.vstack((est_positions, gt_positions))
+        all_positions = est_positions if not plot_ground_truth else np.vstack((est_positions, gt_positions))
         starting_point = est_positions[0]
-        min_vals = np.min(all_positions, axis=0) - 0.1 - np.array(starting_point).reshape(-1)
-        max_vals = np.max(all_positions, axis=0) + 0.1 - np.array(starting_point).reshape(-1)
+        min_vals = np.min(all_positions, axis=0) - 0.1 - starting_point
+        max_vals = np.max(all_positions, axis=0) + 0.1 - starting_point
         global_min = np.min(min_vals)
         global_max = np.max(max_vals)
         ax_traj.set_xlim(global_min + starting_point[0], global_max + starting_point[0])
@@ -67,12 +65,9 @@ class Visualizer:
         est_quiver_artists = []
         gt_quiver_artists = []
 
-        # Initialize blank images
-        dummy_img = np.zeros((480, 640))  # Change dimensions if needed
-        left_image_display = ax_left_img.imshow(dummy_img, cmap='gray')
-        left_image_display.set_clim(0.0, 1.0)
-        right_image_display = ax_right_img.imshow(dummy_img, cmap='gray')
-        right_image_display.set_clim(0.0, 1.0)
+        dummy_img = np.zeros((480, 640))
+        left_image_display = ax_left_img.imshow(dummy_img, cmap='gray', vmin=0, vmax=1)
+        right_image_display = ax_right_img.imshow(dummy_img, cmap='gray', vmin=0, vmax=1)
         ax_left_img.set_title("Left Stereo Image")
         ax_right_img.set_title("Right Stereo Image")
         ax_left_img.axis('off')
@@ -101,22 +96,22 @@ class Visualizer:
                 next_vision_time = self.vision_state_timeseries[self.vision_timeseries_index]
                 if current_time >= next_vision_time:
                     vision_frame = self.vision_input_frames[self.vision_timeseries_index]
-
                     left_path = vision_frame.get_image_left_path()
                     right_path = vision_frame.get_image_right_path()
-                    left_image = mpimg.imread(left_path)
-                    right_image = mpimg.imread(right_path)
 
-                    print(f"Loaded images for time: {next_vision_time}: {left_path}, {right_path}")
+                    left_image = cv2.imread(left_path, cv2.IMREAD_GRAYSCALE)
+                    right_image = cv2.imread(right_path, cv2.IMREAD_GRAYSCALE)
 
-                    left_image_display.set_data(left_image)
-                    right_image_display.set_data(right_image)
-
+                    if left_image is None or right_image is None:
+                        print(f"⚠️ Could not load image(s) at time {next_vision_time}")
+                    else:
+                        left_image_display.set_data(left_image.astype(np.float32) / 255.0)
+                        right_image_display.set_data(right_image.astype(np.float32) / 255.0)
                     self.vision_timeseries_index += 1
 
-            #print(f"Frame: {frame}, Estimated Position: {est_state.get_world_position()}, Ground Truth Position: {gt_state.get_world_position() if plot_ground_truth else 'N/A'}")
             return est_quiver_artists + gt_quiver_artists + [left_image_display, right_image_display]
 
-        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=0.1, blit=False)
+        ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=60, blit=False)
+        #ani.save('drone_trajectory.mp4', writer='ffmpeg', fps=30)
         plt.tight_layout()
         plt.show()
