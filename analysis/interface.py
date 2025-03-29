@@ -29,9 +29,10 @@ class EKFDroneState:
         return repr
 
 class IMUInputFrame:
-    def __init__(self, gyro_data: np.ndarray, accel_data: np.ndarray):
+    def __init__(self, gyro_data: np.ndarray, accel_data: np.ndarray, timestamp):
         self.gyro_data = gyro_data
         self.accel_data = accel_data
+        self.timestamp = timestamp
     
     def get_gyro_data(self) -> np.ndarray:
         return self.gyro_data
@@ -54,9 +55,10 @@ class IMUInputFrame:
         return repr
     
 class VisionInputFrame:
-    def __init__(self, image_path_left: str, image_path_right: str):
+    def __init__(self, image_path_left: str, image_path_right: str, timestamp):
         self.image_left = image_path_left
         self.image_right = image_path_right
+        self.timestamp = timestamp
     
     def get_image_left_path(self) -> str:
         return self.image_left

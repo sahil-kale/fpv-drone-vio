@@ -5,12 +5,13 @@ from interface import *
 import matplotlib.animation as animation
 
 class Visualizer:
-    def __init__(self, states: EKFDroneState, state_timeseries: np.ndarray, ground_truth: EKFDroneState, ground_truth_timeseries: np.ndarray):
+    def __init__(self, states: EKFDroneState, ground_truth: EKFDroneState, state_timeseries: np.ndarray, vision_input_frames: VisionInputFrame, vision_state_timeseries: np.ndarray):
         self.states = states
         self.state_timeseries = state_timeseries
         self.ground_truth = ground_truth
-        self.ground_truth_timeseries = ground_truth_timeseries
-    
+        self.vision_input_frames = vision_input_frames
+        self.vision_state_timeseries = vision_state_timeseries
+
     def plot_3d_coordinate_axes(self, ax, state: EKFDroneState, color_strs: list = ['r', 'g', 'b']):
         origin = state.get_world_position()
         quiver_length = 0.5
@@ -61,7 +62,6 @@ class Visualizer:
         ax.set_xlim(global_min + starting_point[0], global_max + starting_point[0])
         ax.set_ylim(global_min + starting_point[1], global_max + starting_point[1])
         ax.set_zlim(global_min + starting_point[2], global_max + starting_point[2])
-
 
         ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio
         
