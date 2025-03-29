@@ -101,6 +101,15 @@ if __name__ == '__main__':
             break
     
     imu_input_frames = imu_input_frames[index_at_which_imu_data_is_synced:]
+    imu_timestamp = imu_timestamp[index_at_which_imu_data_is_synced:]
+
+    index_at_which_vision_data_is_synced = 0
+    for i, timestamp in enumerate(image_timestamps):
+        if timestamp >= gt_timestamp[0]:
+            index_at_which_vision_data_is_synced = i
+            break
+    vision_input_frames = vision_input_frames[index_at_which_vision_data_is_synced:]
+    image_timestamps = image_timestamps[index_at_which_vision_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
     NUM_FRAMES_TO_PLOT = 3000
@@ -124,8 +133,5 @@ if __name__ == '__main__':
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
     
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, image_timestamps, vision_input_frames, )
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
-
-
-
