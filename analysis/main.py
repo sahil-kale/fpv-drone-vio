@@ -134,5 +134,5 @@ if __name__ == '__main__':
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
     
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps)
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
