@@ -683,7 +683,7 @@ class VisionRelativeOdometryCalculator:
                                                self.previous_feature_data.right_keypoints)
         points1 = self.StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
 
-        pl1, pr1 = extract_points_from_matches(consistent_matches2,
+        pl2, pr2 = extract_points_from_matches(consistent_matches2,
                                         self.current_feature_data.left_keypoints,
                                         self.current_feature_data.right_keypoints)
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
