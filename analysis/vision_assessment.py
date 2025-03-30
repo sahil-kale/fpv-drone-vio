@@ -72,7 +72,7 @@ initial_frame = VisionInputFrame(left_images[0], right_images[0])
 odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
                                               feature_extractor=mycv.SIFTFeatureExtractor(),
                                               feature_matcher=mycv.FLANNMatcher(),
-                                              feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=1))
+                                              feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=0.7))
 
 #Set up arrays to track pose
 estimated_transformations = []
@@ -80,7 +80,7 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 max = len(ground_truth_transformations)
-limit = max
+limit = 100
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -99,9 +99,9 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
 
     # Plot the difference between the point clouds for this step
     # odometry_calculator.plot_point_clouds(points_prev, points_cur)
-    image_l, image_r = mycv.load_images(input_frame)
-    odometry_calculator.StereoPair.plot_undistorted_points(points_left, points_right, image_l, image_r, axes, animate=True)
-plt.show()
+    # image_l, image_r = mycv.load_images(input_frame)
+    # odometry_calculator.StereoPair.plot_undistorted_points(points_left, points_right, image_l, image_r, axes, animate=True)
+# plt.show()
 
 #Plot the estimated v.s. ground truth trajectory
 fig = plt.figure(figsize=(10, 10))

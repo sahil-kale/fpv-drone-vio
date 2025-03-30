@@ -18,6 +18,11 @@ def preprocess_images(left_image, right_image):
     #Convert to grayscale
     left_gray = cv2.cvtColor(left_image, cv2.COLOR_BGR2GRAY)
     right_gray = cv2.cvtColor(right_image, cv2.COLOR_BGR2GRAY)
+
+    #Light gaussiasn blur
+    left_gray = cv2.GaussianBlur(left_gray, (5, 5), 0)
+    right_gray = cv2.GaussianBlur(right_gray, (5, 5), 0)
+
     return left_gray, right_gray
 
 #Detect "keypoints" and compute descriptors using a feature detector
@@ -620,6 +625,75 @@ def find_transformation(src_points, dst_points):
     
     return T
 
+#Iterative function for finding transformation robust to outliers
+def find_transformation_iterative(src_points, dst_points, threshold=1.0, max_iterations=5, tol=1e-6):
+    """
+    Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
+
+    :param src_points: Source points (Nx3 array)
+    :param dst_points: Destination points (Nx3 array)
+    :param threshold: Distance threshold for weighting points
+    :param max_iterations: Max iterations for iterative refinement
+    :param tol: Convergence threshold based on transformation difference
+    :return: 4x4 transformation matrix
+    """
+    # Initialize transformation matrix
+    T = np.eye(4)
+    src_points_homogeneous = np.hstack((src_points, np.ones((src_points.shape[0], 1))))
+    
+    for _ in range(max_iterations):
+        # Apply current transformation to the original source points (avoids accumulating drift)
+        src_transformed = (T @ src_points_homogeneous.T).T[:, :3]
+
+        # Compute distances
+        distances = np.linalg.norm(src_transformed - dst_points, axis=1)
+
+        # Robust weighting using Huber loss
+        delta = threshold  # Huber delta parameter
+        weights = np.where(distances <= delta, 1, delta / distances)
+        weights /= np.sum(weights)  # Normalize
+
+        # Compute weighted centroids
+        src_centroid = np.average(src_transformed, axis=0, weights=weights)
+        dst_centroid = np.average(dst_points, axis=0, weights=weights)
+
+        # Center points
+        src_centered = src_transformed - src_centroid
+        dst_centered = dst_points - dst_centroid
+
+        # Apply weights
+        src_centered_weighted = src_centered * weights[:, np.newaxis]
+        dst_centered_weighted = dst_centered * weights[:, np.newaxis]
+
+        # Compute weighted covariance
+        H = src_centered_weighted.T @ dst_centered_weighted
+        U, _, Vt = np.linalg.svd(H)
+        R = Vt.T @ U.T
+
+        # Ensure a proper rotation (prevent reflection)
+        if np.linalg.det(R) < 0:
+            Vt[-1, :] *= -1
+            R = Vt.T @ U.T
+
+        # Compute translation
+        t = dst_centroid - R @ src_centroid
+
+        # Construct new transformation matrix
+        T_new = np.eye(4)
+        T_new[:3, :3] = R
+        T_new[:3, 3] = t
+
+        # Damped update to prevent overshooting (smooth blending)
+        alpha = 0.5  # Lower values slow down updates
+        T = alpha * (T_new @ T) + (1 - alpha) * T
+
+        # Check convergence
+        if np.linalg.norm(T_new - T) < tol:
+            break
+
+    return T
+
+
 def update_camera_pose(T_relative):
     global T_world_to_current
     T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
@@ -714,7 +788,7 @@ class VisionRelativeOdometryCalculator:
                                         self.current_feature_data.right_keypoints)
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-        transformation = find_transformation(points1, points2)
+        transformation = find_transformation_iterative(points1, points2)
 
         self.previous_feature_data = self.current_feature_data
 
