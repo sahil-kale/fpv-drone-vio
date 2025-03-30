@@ -45,63 +45,52 @@ class IMUKalmanFilter:
         # Extract IMU data
         ang_vel = imu_input_frame.get_gyro_data()
         lin_acc = imu_input_frame.get_accel_data()
-
+        # Update dt
         self.dt = dt
+
+        # Extract state variables
         x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
 
-        # Bias-corrected angular velocity
-        gyro = np.array([
-            ang_vel[0] - self.gyro_bias[0],
-            ang_vel[1] - self.gyro_bias[1],
-            ang_vel[2] - self.gyro_bias[2]
-        ]).reshape(3, 1)
+        gyro_x = ang_vel[0] - self.gyro_bias[0]
+        gyro_y = ang_vel[1] - self.gyro_bias[1]
+        gyro_z = ang_vel[2] - self.gyro_bias[2]
+        acc_x = lin_acc[0]
+        acc_y = lin_acc[1]
+        acc_z = lin_acc[2]
 
-        # Raw linear acceleration (IMU frame)
-        acc = np.array([lin_acc[0], lin_acc[1], lin_acc[2]]).reshape(3, 1)
+        world_to_drone_rotation_matrix = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item()).reshape(3, 3)
+        drone_to_world_rotation_matrix = world_to_drone_rotation_matrix.T
 
-        # Apply IMU-to-drone rotation matrix (handle axis flips)
-        gyro_drone = self.imu_to_drone_rotation_matrix @ gyro
-        acc_drone = self.imu_to_drone_rotation_matrix @ acc
+        gyro_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1)
 
-        # Construct rotation matrix from Euler angles
-        R_world_to_drone = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item())
-        R_drone_to_world = R_world_to_drone.T  # Inverse
+        # Transfer the gyro vector to the world frame
+        gyro_world = drone_to_world_rotation_matrix @ gyro_in_drone_frame
+        # Integrate the gyro vector to get the new orientation
+        t_x += gyro_world[0] * self.dt
+        t_y += gyro_world[1] * self.dt
+        t_z += gyro_world[2] * self.dt
 
-        # === Orientation Update ===
-        t_x += gyro_drone[0] * dt
-        t_y += gyro_drone[1] * dt
-        t_z += gyro_drone[2] * dt
+        # Transfer the acceleration vector to the world frame
+        acc_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([acc_x, acc_y, acc_z]).reshape(3, 1)
 
-        # Normalize angles to [-π, π]
-        t_x = (t_x + np.pi) % (2 * np.pi) - np.pi
-        t_y = (t_y + np.pi) % (2 * np.pi) - np.pi
-        t_z = (t_z + np.pi) % (2 * np.pi) - np.pi
+        acc_world = drone_to_world_rotation_matrix @ acc_in_drone_frame - self.gravity
+        # Integrate the acceleration vector to get the new position
+        x += v_x * self.dt
+        y += v_y * self.dt
+        z += v_z * self.dt
 
-        # === Acceleration → World Frame ===
-        acc_world = R_drone_to_world @ acc_drone - self.gravity  # gravity should be [0, 0, 9.81] for Z-down IMU
+        v_x += acc_world[0] * self.dt
+        v_y += acc_world[1] * self.dt
+        v_z += acc_world[2] * self.dt
 
-        # === Position & Velocity Update ===
-        x += v_x * dt
-        y += v_y * dt
-        z += v_z * dt
-
-        v_x += acc_world[0] * dt
-        v_y += acc_world[1] * dt
-        v_z += acc_world[2] * dt
-
-        # Debug output
         if self.counter < 5:
-            print("acc_body (drone frame)", acc_drone.ravel())
+            print("acc_body", lin_acc.ravel())
             print("acc_world", acc_world.ravel())
-            self.counter += 1
+            self.counter+=1
+        
+        self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
 
-        self.state = np.array([
-            x.item(), y.item(), z.item(),
-            v_x.item(), v_y.item(), v_z.item(),
-            t_x.item(), t_y.item(), t_z.item()
-        ]).reshape(self.num_states, 1)
-
-        self.P = self.A @ self.P @ self.A.T + self.Q
+        self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
         
