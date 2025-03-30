@@ -29,6 +29,11 @@ class IMUKalmanFilter:
         self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
         self.C[2:5][:] = 0 #Remove Velocity Components from output vector   
 
+        self.A = np.eye(9)
+        self.A[0, 3] = dt  # x += v_x * dt
+        self.A[1, 4] = dt
+        self.A[2, 5] = dt
+
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
         self.imu_to_drone_rotation_matrix = elementary_rotation_matrix_x(np.pi)
@@ -81,6 +86,8 @@ class IMUKalmanFilter:
         v_z += acc_world[2] * self.dt
         
         self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
+
+        self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
         
