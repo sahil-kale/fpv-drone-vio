@@ -50,9 +50,9 @@ def elementary_rotation_matrix_x(theta):
 def elementary_rotation_matrix_y(theta):
     """Generate a rotation matrix for a rotation around the y-axis by theta radians."""
     return np.array([
-        [np.cos(theta), 0, np.sin(theta)],
+        [np.cos(theta), 0, -np.sin(theta)],
         [0, 1, 0],
-        [-np.sin(theta), 0, np.cos(theta)]
+        [np.sin(theta), 0, np.cos(theta)]
     ])
 
 def elementary_rotation_matrix_z(theta):
@@ -68,7 +68,7 @@ def euler_to_rotation_matrix(t_x, t_y, t_z):
     rot_y = elementary_rotation_matrix_y(t_y)
     rot_x = elementary_rotation_matrix_x(t_x)
 
-    combined = rot_x @ rot_y @ rot_z
+    combined = rot_z @ rot_y @ rot_x
     assert combined.shape == (3, 3), "Combined rotation matrix must be of shape (3, 3)"
     return combined
 
