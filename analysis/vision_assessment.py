@@ -187,29 +187,12 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 maximum = len(ground_truth_transformations)
-limit = maximum
-visualize = False
-
-if visualize:
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
-            [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
-            [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
-            [ 0., 0., 0., 1. ]])
-
-T_imu2refl = np.diag([1, -1, -1, 1]) #invert the transformation to get the camera to imu transformation
-T_cam2drone =T_cam02imu0#invert the transformation to get the camera to imu transformation
-
-#  np.array([[0, 0, 1, 0],
-#         [0, 1, 0, 0],
-#         [-1, 0, 0, 0],
-#         [0, 0, 0, 1]]) @ 
-# Filter parameter (0 < alpha <= 1; lower values smooth more)
-alpha_t = 0.1
-alpha_R = 0.1
+limit = maximum 
+alpha_t = 1
+alpha_R = 1
 filtered_R = np.eye(3)
 filtered_t = np.zeros(3)
+
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
     if i >= limit - 1:
         break
@@ -218,15 +201,7 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
     input_frame = VisionInputFrame(left_image, right_image)
 
     # Calculate the relative odometry between the previous and new input frame
-    relative_transformation, points_prev, points_cur, points_left, points_right = \
-        odometry_calculator.calculate_relative_odometry_homogenous(input_frame)
-    
-    #Switch the basis of the relative transformation to the drone frame
-    relative_transformation = (
-        T_cam2drone @
-        relative_transformation @ 
-        np.linalg.inv(T_cam2drone)
-    )
+    relative_transformation = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
 
     # Decompose the relative transformation into rotation (R_new) and translation (t_new)
     R_new = relative_transformation[:3, :3]
@@ -253,15 +228,6 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
 
     # Apply the new transformation to the previous one to get the new world position
     estimated_transformations.append(estimated_transformations[-1] @ filtered_relative_transformation)
-    #note that the above is still not quite correct I think, but it is a start               
-
-    # Plot the difference between the point clouds for this step
-    # odometry_calculator.plot_point_clouds(points_prev, points_cur)
-    if visualize:
-        image_l, image_r = mycv.load_images(input_frame)
-        odometry_calculator.StereoPair.plot_undistorted_points(points_left, points_right, image_l, image_r, axes, animate=True)
-if visualize:
-    plt.show() 
 
 #Plot the estimated v.s. ground truth trajectory
 fig = plt.figure(figsize=(10, 10))
@@ -460,4 +426,20 @@ ax6.set_xlabel('Frame')
 ax6.set_ylabel('Magnitude')
 ax6.legend()
 
+plt.show(block=False)
+
+#Plot distributions of residuals x, y, z, rotx, roty, rotz
+fig4, axs = plt.subplots(2, 3, figsize=(15, 10))
+axs[0, 0].hist(position_residuals[:, 0], bins=50, color='r', alpha=0.7)
+axs[0, 0].set_title('Position Residuals X')
+axs[0, 1].hist(position_residuals[:, 1], bins=50, color='g', alpha=0.7)
+axs[0, 1].set_title('Position Residuals Y')
+axs[0, 2].hist(position_residuals[:, 2], bins=50, color='b', alpha=0.7)
+axs[1, 0].hist(rotation_residuals[:, 0], bins=50, color='r', alpha=0.7)
+axs[1, 0].set_title('Rotation Residuals X')
+axs[1, 1].hist(rotation_residuals[:, 1], bins=50, color='g', alpha=0.7)
+axs[1, 1].set_title('Rotation Residuals Y')
+axs[1, 2].hist(rotation_residuals[:, 2], bins=50, color='b', alpha=0.7)
+fig4.suptitle('Residuals Distributions')
+plt.tight_layout()
 plt.show()

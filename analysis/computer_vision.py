@@ -705,6 +705,12 @@ def update_camera_pose(T_relative):
     T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
     return T_world_to_current
 
+T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
+            [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
+            [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
+            [ 0., 0., 0., 1. ]])
+T_cam2drone =T_cam02imu0
+
 class FeatureData:
     def __init__(self, filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors):
         self.filtered_matches = filtered_matches
@@ -777,7 +783,7 @@ class VisionRelativeOdometryCalculator:
         
         return consistent_matches1, consistent_matches2
     
-    def calculate_relative_odometry_homogenous(self, input_frame:interface.VisionInputFrame) -> np.ndarray:
+    def calculate_relative_odometry_homogenous(self, input_frame:interface.VisionInputFrame, camera_frame=False) -> np.ndarray:
         #Update the current feature data from the input images
         self.update_current_feature_data(input_frame)
 
@@ -795,13 +801,22 @@ class VisionRelativeOdometryCalculator:
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
         transformation = find_transformation_iterative(points1, points2)
+        if not(camera_frame):
+            transformation = (
+                T_cam2drone @
+                transformation @ 
+                np.linalg.inv(T_cam2drone)
+            )
 
         self.previous_feature_data = self.current_feature_data
 
-        return transformation, points1, points2, pl2, pr2
+        return transformation
     
-    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame) -> interface.VisionRelativeOdometry:
-        homo_transformation = self.calculate_relative_odometry(input_frame)
+    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame, camera_frame=False) -> interface.VisionRelativeOdometry:
+        if camera_frame:
+            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=True)
+        else:
+            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=False)
         return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(homo_transformation)
 
     def plot_point_clouds(self, points1_world, points2_world):
