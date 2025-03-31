@@ -1,5 +1,6 @@
 from interface import VisionInputFrame, VisionRelativeOdometry
 import computer_vision as mycv
+import cv2
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -95,6 +96,33 @@ def plot_trajectory(trajectory, ax, color='r', triad_scale=0.1, show_triads=Fals
                     R[0, 2], R[1, 2], R[2, 2],
                     color='k', length=triad_scale)
 
+#Function to evaluate the error in the delta estimations
+def get_delta_residuals(estimated_trajectory, ground_truth_trajectory):
+    estimated_deltas = []
+    ground_truth_deltas = []
+    for i in range(1, len(estimated_trajectory)):
+        estimated_deltas.append(np.linalg.inv(estimated_trajectory[i-1]) @ estimated_trajectory[i])
+        ground_truth_deltas.append(np.linalg.inv(ground_truth_trajectory[i-1]) @ ground_truth_trajectory[i])
+    
+    # The deltas give a position change vector and a rotation matrix 
+    # We can find the difference between estimated and ground truth deltas
+    # Error in the position change is given by a vector
+    # Error in the rotation is given by a rotation matrix which we will convert to a rodrigues vector
+    estimated_deltas = np.array(estimated_deltas)
+    ground_truth_deltas = np.array(ground_truth_deltas)
+    position_residuals = estimated_deltas[:, :3, 3] - ground_truth_deltas[:, :3, 3] #Subtract t - t_gt
+    rotation_residuals = np.zeros((len(estimated_deltas), 3))
+    for i in range(len(estimated_deltas)):
+        estimated_rotation = estimated_deltas[i][:3, :3]
+        ground_truth_rotation = ground_truth_deltas[i][:3, :3]
+        # Find the difference between the two rotations
+        rotation_diff = ground_truth_rotation.T @ estimated_rotation
+        # Convert the rotation matrix to a rodrigues vector
+        rotation_vector, _ = cv2.Rodrigues(rotation_diff)
+        rotation_residuals[i] = rotation_vector.flatten()
+
+    return position_residuals, rotation_residuals
+
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
 initial_frame = VisionInputFrame(left_images[0], right_images[0])
@@ -110,11 +138,11 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 max = len(ground_truth_transformations)
-limit = 50
-visualize = True
+limit = 100
+visualize = False
 
-
-fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+if visualize:
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
 T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
             [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
@@ -134,9 +162,8 @@ alpha_R = 0.2
 filtered_R = np.eye(3)
 filtered_t = np.zeros(3)
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
-    if counter > limit:
+    if i >= limit - 1:
         break
-    counter += 1
     print(i)
     
     input_frame = VisionInputFrame(left_image, right_image)
@@ -214,4 +241,55 @@ plot_trajectory(estimated_transformations, ax, color='purple', show_triads=True)
 plot_trajectory(ground_truth_transformations[:limit], ax, color='g', show_triads=True)
 ax.legend(['Estimated', 'Ground Truth'])
 ax.set_title('Camera trajectory')
+plt.show(block=False)  # Use block=False to prevent blocking
+
+# Calculate the residuals
+position_residuals, rotation_residuals = get_delta_residuals(estimated_transformations, ground_truth_transformations[:limit])
+
+mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
+mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
+
+# Calculate RMS errors
+pos_rms_x = np.sqrt(np.mean(position_residuals[:, 0]**2))
+pos_rms_y = np.sqrt(np.mean(position_residuals[:, 1]**2))
+pos_rms_z = np.sqrt(np.mean(position_residuals[:, 2]**2))
+pos_rms_total = np.sqrt(np.mean(mag_position_residuals**2))
+
+rot_rms_x = np.sqrt(np.mean(rotation_residuals[:, 0]**2))
+rot_rms_y = np.sqrt(np.mean(rotation_residuals[:, 1]**2))
+rot_rms_z = np.sqrt(np.mean(rotation_residuals[:, 2]**2))
+rot_rms_total = np.sqrt(np.mean(mag_rotation_residuals**2))
+
+print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}")
+print(f"Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}, Total: {rot_rms_total:.4f}")
+
+fig2 = plt.figure(figsize=(1, 5))
+ax1 = fig2.add_subplot(2, 2, 1, projection='3d')
+ax2 = fig2.add_subplot(2, 2, 3, projection='3d')
+ax3 = fig2.add_subplot(2, 2, (2, 4))
+
+ax1.plot([p[0] for p in position_residuals], 
+         [p[1] for p in position_residuals], 
+         [p[2] for p in position_residuals], color='r')
+ax1.set_title('Position Residuals')
+ax1.set_xlabel('X')
+ax1.set_ylabel('Y')
+ax1.set_zlabel('Z')
+
+ax2.plot([r[0] for r in rotation_residuals],
+         [r[1] for r in rotation_residuals], 
+         [r[2] for r in rotation_residuals], color='b')
+ax2.set_title('Rotation Residuals')
+ax2.set_xlabel('X')
+ax2.set_ylabel('Y')
+ax2.set_zlabel('Z')
+
+ax3.plot(mag_position_residuals, color='r', label='Position Residuals')
+ax3.plot(mag_rotation_residuals, color='b', label='Rotation Residuals')
+ax3.set_title('Magnitude of Residuals')
+ax3.set_xlabel('Frame')
+ax3.set_ylabel('Magnitude')
+ax3.legend()
+
+plt.tight_layout()
 plt.show()
