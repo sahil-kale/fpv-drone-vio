@@ -626,7 +626,7 @@ def find_transformation(src_points, dst_points):
     return T
 
 #Iterative function for finding transformation robust to outliers
-def find_transformation_iterative(src_points, dst_points, threshold=1.0, max_iterations=5, tol=1e-6):
+def find_transformation_iterative(src_points, dst_points, threshold=0.1, max_iterations=5, tol=1e-6):
     """
     Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
 
