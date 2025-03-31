@@ -19,9 +19,12 @@ def preprocess_images(left_image, right_image):
     left_gray = cv2.cvtColor(left_image, cv2.COLOR_BGR2GRAY)
     right_gray = cv2.cvtColor(right_image, cv2.COLOR_BGR2GRAY)
 
-    #Light gaussiasn blur
-    left_gray = cv2.GaussianBlur(left_gray, (5, 5), 0)
-    right_gray = cv2.GaussianBlur(right_gray, (5, 5), 0)
+    # Edge-preserving smoothing with bilateral filter
+    # d: diameter of pixel neighborhood; sigmaColor: filter sigma in color space;
+    # sigmaSpace: filter sigma in coordinate space.
+    left_gray = cv2.bilateralFilter(left_gray, d=9, sigmaColor=75, sigmaSpace=75)
+    right_gray = cv2.bilateralFilter(right_gray, d=9, sigmaColor=75, sigmaSpace=75)
+
 
     return left_gray, right_gray
 
@@ -47,13 +50,13 @@ class ORBFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.orb.detectAndCompute(image, None)
-        return keypoints, descriptors
+        return keypoints, 
 
 class SIFTFeatureExtractor(FeatureExtractor):
     """
     Feature extractor using SIFT (Scale-Invariant Feature Transform) algorithm
     """
-    def __init__(self, n_features=500):
+    def __init__(self, n_features=3000):
         self.n_features = n_features
         self.sift = cv2.SIFT_create(nfeatures=n_features)
     
@@ -101,7 +104,7 @@ class FLANNMatcher(FeatureMatcher):
     Feature matcher using FLANN (Fast Library for Approximate Nearest Neighbors) algorithm
     """
     def __init__(self):
-        self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=5), dict(checks=50))
+        self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), dict(checks=60))
     
     def match_features(self, left_descriptors, right_descriptors):
         matches = self.flann.knnMatch(left_descriptors, right_descriptors, k=2)
@@ -227,7 +230,9 @@ class StereoProjection:
             self.K1_new = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 self.K1, self.dist_coeffs1, (self.resX1, self.resY1), np.eye(3), balance=1)
             
-            # No need to redefine the projection matrices here
+            self.P0 = self.K0_new @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0_new * [I | 0]
+            self.P1 = self.K1_new @ np.hstack((self.R, self.t))  # P1 = K1_new * [R | t]
+
         elif self.distortion_type == "normal":
             # Use standard distortion model
             self.dist_coeffs0 = np.array([self.dist_coeffs0[0], self.dist_coeffs0[1], self.dist_coeffs0[2], self.dist_coeffs0[3], 0])
@@ -236,8 +241,9 @@ class StereoProjection:
             self.K0_new, _ = cv2.getOptimalNewCameraMatrix(self.K0, self.dist_coeffs0, (self.resX0, self.resY0), 1, (self.resX0, self.resY0))
             self.K1_new, _ = cv2.getOptimalNewCameraMatrix(self.K1, self.dist_coeffs1, (self.resX1, self.resY1), 1, (self.resX1, self.resY1))
             #Don't use distortion
-        self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
-        self.P1 = self.K1 @ np.hstack((self.R, self.t))  # P1 = K1 * [R | t]
+        else:
+            self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
+            self.P1 = self.K1 @ np.hstack((self.R, self.t))  # P1 = K1 * [R | t]
 
     #Function to calculate and visualize distortion correction
     def undistort_image(self, image, camera_matrix, dist_coeffs, camera="left"):
@@ -626,7 +632,7 @@ def find_transformation(src_points, dst_points):
     return T
 
 #Iterative function for finding transformation robust to outliers
-def find_transformation_iterative(src_points, dst_points, threshold=0.1, max_iterations=5, tol=1e-6):
+def find_transformation_iterative(src_points, dst_points, threshold=0.1, max_iterations=10, tol=1e-6):
     """
     Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
 
@@ -813,8 +819,8 @@ class VisionRelativeOdometryCalculator:
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential frames
-    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_0.png", "dataset/vio_dataset_1/img/image_1_0.png")
-    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1.png", "dataset/vio_dataset_1/img/image_1_1.png")
+    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png")
+    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png")
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
@@ -912,7 +918,8 @@ if __name__ == "__main__":
     [0.0, 0.0, 0.0, 1.0]])
     
     
-    # show_points(left1, pl1, right1, pr1, points1)
+    show_points(left1, pl1, right1, pr1, points1)
+    show_points(left2, pl2, right2, pr2, points2)
 
     #transform points1 to the world frame
     points1_world = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.vstack((points1.T, np.ones(points1.shape[0])))))

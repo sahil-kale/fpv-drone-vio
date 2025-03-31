@@ -3,6 +3,7 @@ import computer_vision as mycv
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation, Slerp
 
 
 # Read ground truth file and get the first timestamp
@@ -83,7 +84,7 @@ initial_frame = VisionInputFrame(left_images[0], right_images[0])
 odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
                                               feature_extractor=mycv.SIFTFeatureExtractor(),
                                               feature_matcher=mycv.FLANNMatcher(),
-                                              feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=0.7))
+                                              feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=1))
 
 #Set up arrays to track pose
 estimated_transformations = []
@@ -91,35 +92,73 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 max = len(ground_truth_transformations)
-limit = 100
+limit = 500
 visualize = False
 
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-T_cam_imu=([[-0.011823057800830705, -0.9998701444077991, -0.010950325390841398, -0.057904961033265645],
-            [0.011552991631909482, 0.01081376681432078, -0.9998747875767439, 0.00043766687615362694],
-            [0.9998633625093938, -0.011948086424720228, 0.011423639621249038, -0.00039944945687402214],
-            [0.0, 0.0, 0.0, 1.0]])
-T_imu2cam = np.linalg.inv(T_cam_imu) #invert the transformation to get the camera to imu transformation
-T_cam2drone= T_imu2cam
+T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
+            [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
+            [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
+            [ 0., 0., 0., 1. ]])
 
+T_imu2refl = np.diag([1, -1, -1, 1]) #invert the transformation to get the camera to imu transformation
+T_cam2drone = np.array([[0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [-1, 0, 0, 0],
+        [0, 0, 0, 1]]) @ T_cam02imu0 @ np.diag([1, -1, -1, 1]) #invert the transformation to get the camera to imu transformation
+
+
+# Filter parameter (0 < alpha <= 1; lower values smooth more)
+alpha_t = 0.2
+alpha_R = 0.2
+filtered_R = np.eye(3)
+filtered_t = np.zeros(3)
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
-    counter = counter + 1
     if counter > limit:
         break
+    counter += 1
     print(i)
+    
     input_frame = VisionInputFrame(left_image, right_image)
 
     # Calculate the relative odometry between the previous and new input frame
-    relative_transformation, points_prev, points_cur, points_left, points_right = odometry_calculator.calculate_relative_odometry_homogenous(input_frame)
+    relative_transformation, points_prev, points_cur, points_left, points_right = \
+        odometry_calculator.calculate_relative_odometry_homogenous(input_frame)
     
     #Switch the basis of the relative transformation to the drone frame
-    # relative_transformation = np.linalg.inv(T_cam2drone) @ relative_transformation @ T_cam2drone
+    relative_transformation = (
+        T_cam2drone @
+        relative_transformation @ 
+        np.linalg.inv(T_cam2drone)
+    )
+
+    # Decompose the relative transformation into rotation (R_new) and translation (t_new)
+    R_new = relative_transformation[:3, :3]
+    t_new = relative_transformation[:3, 3]
+
+    if i == 0:
+        filtered_R = R_new.copy()
+        filtered_t = t_new.copy()
+    else:        
+        # Filter the translation
+        filtered_t = alpha_t * t_new + (1 - alpha_t) * filtered_t
+        
+        # Filter the rotation using quaternions
+        key_times = [0, 1]
+        key_rots = Rotation.from_matrix([filtered_R, R_new])
+        slerp = Slerp(key_times, key_rots)
+        rot_filtered = slerp(alpha_R)
+        filtered_R = rot_filtered.as_matrix()
+
+    # Recompose the filtered relative transformation
+    filtered_relative_transformation = np.eye(4)
+    filtered_relative_transformation[:3, :3] = filtered_R
+    filtered_relative_transformation[:3, 3] = filtered_t
 
     # Apply the new transformation to the previous one to get the new world position
-    estimated_transformations.append(estimated_transformations[-1] @ relative_transformation)
-
+    estimated_transformations.append(estimated_transformations[-1] @ filtered_relative_transformation)
     #note that the above is still not quite correct I think, but it is a start               
 
     # Plot the difference between the point clouds for this step
@@ -137,6 +176,22 @@ ax.set_title('Camera trajectory')
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
+
+#Extract just translation
+est_positions = np.array([t[:3, 3] for t in estimated_transformations])
+
+# Compute the min, max, midpoint, and range along each axis
+mins = est_positions.min(axis=0)
+maxs = est_positions.max(axis=0)
+mid = (mins + maxs) / 2
+max_range = (maxs - mins).max()
+
+# Set the axis limits uniformly so the plot is centered and scaled equally
+ax.set_xlim(mid[0] - max_range / 2, mid[0] + max_range / 2)
+ax.set_ylim(mid[1] - max_range / 2, mid[1] + max_range / 2)
+ax.set_zlim(mid[2] - max_range / 2, mid[2] + max_range / 2)
+
+# Plot the trajectories (assuming plot_trajectory is defined)
 plot_trajectory(estimated_transformations, ground_truth_transformations[:limit], ax)
 ax.legend()
 plt.show()
