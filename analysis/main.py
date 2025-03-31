@@ -171,6 +171,29 @@ if __name__ == '__main__':
 
 
         ekf_states.append(ekf.get_state())
+
+    ekf_orient_vector = []
+    gt_orient_vector = []
+
+
+    # for i, ekf_state in enumerate(ekf_states):
+    #     ekf_orient_vector.append(np.sqrt(ekf_state.get_world_orientation()[0] ** 2 + ekf_state.get_world_orientation()[1] ** 2 + ekf_state.get_world_orientation()[2] ** 2))
+
+
+    # for i, gt_state in enumerate(gt_states):
+    #     gt_orient_vector.append(np.sqrt(gt_state.get_world_orientation()[0] ** 2 + gt_state.get_world_orientation()[1] ** 2 + gt_state.get_world_orientation()[2] ** 2))
     
+    # vector_error = [None]*(len(gt_states))
+    # for i in range(0, len(gt_states)):
+    #     vector_error[i] = ekf_orient_vector[i] - gt_orient_vector[i]
+    
+    # for i in range(0, len(gt_states)):
+    #     if(vector_error[i] > 1 and i < 1300):
+    #         pass
+
+    
+    # print(max(vector_error))
+
+    print(ekf_states[0].get_world_position() - ekf_states[-1].get_world_position())
     visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)

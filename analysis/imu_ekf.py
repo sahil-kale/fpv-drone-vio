@@ -34,7 +34,7 @@ class IMUKalmanFilter:
         self.A[0, 3] = dt  # x += v_x * dt
         self.A[1, 4] = dt
         self.A[2, 5] = dt
-        self.counter = 0
+        self.max_error = 0
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
@@ -48,45 +48,60 @@ class IMUKalmanFilter:
         # Update dt
         self.dt = dt
 
+
+
         # Extract state variables
         x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
+
 
         gyro_x = ang_vel[0] - self.gyro_bias[0]
         gyro_y = ang_vel[1] - self.gyro_bias[1]
         gyro_z = ang_vel[2] - self.gyro_bias[2]
+
+
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
         world_to_drone_rotation_matrix = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item()).reshape(3, 3)
         drone_to_world_rotation_matrix = world_to_drone_rotation_matrix.T
+       
 
         gyro_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1)
 
         # Transfer the gyro vector to the world frame
         gyro_world = drone_to_world_rotation_matrix @ gyro_in_drone_frame
+
+
         # Integrate the gyro vector to get the new orientation
-        t_x += gyro_world[0] * self.dt
-        t_y += gyro_world[1] * self.dt
-        t_z += gyro_world[2] * self.dt
+        
+        # t_x += gyro_world[0] * self.dt
+        # t_y += gyro_world[1] * self.dt
+        # t_z += gyro_world[2] * self.dt
 
         # Transfer the acceleration vector to the world frame
         acc_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([acc_x, acc_y, acc_z]).reshape(3, 1)
 
         acc_world = drone_to_world_rotation_matrix @ acc_in_drone_frame - self.gravity
+
+
         # Integrate the acceleration vector to get the new position
-        x += v_x * self.dt
-        y += v_y * self.dt
-        z += v_z * self.dt
+        x = x +  v_x*dt + 0.5*acc_world[0]*dt*dt
+        y = y +  v_y*dt + 0.5*acc_world[1]*dt*dt
+        z = z +  v_z*dt + 0.5*acc_world[2]*dt*dt
 
-        v_x += acc_world[0] * self.dt
-        v_y += acc_world[1] * self.dt
-        v_z += acc_world[2] * self.dt
 
-        if self.counter < 5:
-            print("acc_body", lin_acc.ravel())
-            print("acc_world", acc_world.ravel())
-            self.counter+=1
+        v_x = v_x + acc_world[0]*dt
+        v_y = v_y + acc_world[1]*dt
+        v_z = v_z + acc_world[2]*dt
+
+
+
+
+        # if self.counter < 5:
+        #     print("acc_body", lin_acc.ravel())
+        #     print("acc_world", acc_world.ravel())
+        #     self.counter+=1
         
         self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
 
