@@ -73,28 +73,32 @@ def plot_trajectory(trajectory, ax, color='r', triad_scale=0.1, show_triads=Fals
             marker='o')
     
     if show_triads:
-        # Plot orientation triads at each position
-        for T in trajectory:
-            # Extract position
-            pos = T[0:3, 3]
-            
-            # Extract rotation matrix (each column is a direction vector)
-            R = T[0:3, 0:3]
-            
-            # Draw x-axis (red)
-            ax.quiver(pos[0], pos[1], pos[2],
-                    R[0, 0], R[1, 0], R[2, 0],
-                    color='r', length=triad_scale)
-            
-            # Draw y-axis (blue)
-            ax.quiver(pos[0], pos[1], pos[2],
-                    R[0, 1], R[1, 1], R[2, 1],
-                    color='b', length=triad_scale)
-            
-            # Draw z-axis (black)
-            ax.quiver(pos[0], pos[1], pos[2],
-                    R[0, 2], R[1, 2], R[2, 2],
-                    color='k', length=triad_scale)
+        # Plot orientation triads at every tenth position
+        for i, T in enumerate(trajectory):
+            if i % 10 == 0:  # Only plot every tenth triad
+                # Extract position
+                pos = T[0:3, 3]
+                
+                # Extract rotation matrix (each column is a direction vector)
+                R = T[0:3, 0:3]
+                
+                # Use 1/3 of the original triad scale
+                reduced_scale = triad_scale / 3
+                
+                # Draw x-axis (red)
+                ax.quiver(pos[0], pos[1], pos[2],
+                        R[0, 0], R[1, 0], R[2, 0],
+                        color='r', length=reduced_scale)
+                
+                # Draw y-axis (blue)
+                ax.quiver(pos[0], pos[1], pos[2],
+                        R[0, 1], R[1, 1], R[2, 1],
+                        color='b', length=reduced_scale)
+                
+                # Draw z-axis (black)
+                ax.quiver(pos[0], pos[1], pos[2],
+                        R[0, 2], R[1, 2], R[2, 2],
+                        color='k', length=reduced_scale)
 
 #Function to evaluate the error in the delta estimations
 def get_delta_residuals(estimated_trajectory, ground_truth_trajectory):
@@ -121,7 +125,52 @@ def get_delta_residuals(estimated_trajectory, ground_truth_trajectory):
         rotation_vector, _ = cv2.Rodrigues(rotation_diff)
         rotation_residuals[i] = rotation_vector.flatten()
 
-    return position_residuals, rotation_residuals
+    return position_residuals, rotation_residuals, ground_truth_deltas
+
+def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_deltas, eps=1e-3):
+    """
+    Scale residuals by the magnitude of the ground truth delta.
+    
+    For translation, we scale by the norm of the ground truth translation.
+    For rotation, we convert the ground truth rotation to a Rodrigues vector and scale by its norm (i.e. the angle).
+    
+    :param position_residuals: Nx3 array of translation errors.
+    :param rotation_residuals: Nx3 array of rotation errors (in Rodrigues form).
+    :param ground_truth_deltas: List/array of ground truth delta matrices.
+    :param eps: A small value to avoid division by zero.
+    :return: Two arrays: scaled translation errors and scaled rotation errors.
+    """
+    mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
+    mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
+    
+    scaled_position_residuals = []
+    scaled_rotation_residuals = []
+    
+    for i in range(len(ground_truth_deltas)):
+        # For translation: use the norm of the ground truth translation vector.
+        gt_trans = ground_truth_deltas[i][:3, 3]
+        translation_scale = np.linalg.norm(gt_trans)
+        if translation_scale < eps:
+            translation_scale = eps  # Avoid division by zero if there is negligible motion.
+        scaled_position_residuals.append(position_residuals[i] / translation_scale)
+        
+        # For rotation: convert the ground truth rotation to a Rodrigues vector.
+        gt_rot = ground_truth_deltas[i][:3, :3]
+        gt_rodrigues, _ = cv2.Rodrigues(gt_rot)
+        rotation_scale = np.linalg.norm(gt_rodrigues)
+        if rotation_scale < eps:
+            rotation_scale = eps  # Avoid division by zero.
+        scaled_rotation_residuals.append(rotation_residuals[i] / rotation_scale)
+        
+    return np.array(scaled_position_residuals), np.array(scaled_rotation_residuals)
+
+
+#Frame on which we want to start evaluating\
+start_frame = 500
+
+left_images = left_images[start_frame:]
+right_images = right_images[start_frame:]
+ground_truth_transformations = ground_truth_transformations[start_frame:]
 
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
@@ -137,8 +186,8 @@ estimated_transformations = []
 estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
-max = len(ground_truth_transformations)
-limit = 100
+maximum = len(ground_truth_transformations)
+limit = maximum
 visualize = False
 
 if visualize:
@@ -150,15 +199,15 @@ T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
             [ 0., 0., 0., 1. ]])
 
 T_imu2refl = np.diag([1, -1, -1, 1]) #invert the transformation to get the camera to imu transformation
-T_cam2drone = np.array([[0, 0, 1, 0],
-        [0, 1, 0, 0],
-        [-1, 0, 0, 0],
-        [0, 0, 0, 1]]) @ T_cam02imu0 @ np.diag([1, -1, -1, 1]) #invert the transformation to get the camera to imu transformation
+T_cam2drone =T_cam02imu0#invert the transformation to get the camera to imu transformation
 
-
+#  np.array([[0, 0, 1, 0],
+#         [0, 1, 0, 0],
+#         [-1, 0, 0, 0],
+#         [0, 0, 0, 1]]) @ 
 # Filter parameter (0 < alpha <= 1; lower values smooth more)
-alpha_t = 0.2
-alpha_R = 0.2
+alpha_t = 0.1
+alpha_R = 0.1
 filtered_R = np.eye(3)
 filtered_t = np.zeros(3)
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
@@ -212,7 +261,7 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
         image_l, image_r = mycv.load_images(input_frame)
         odometry_calculator.StereoPair.plot_undistorted_points(points_left, points_right, image_l, image_r, axes, animate=True)
 if visualize:
-    plt.show()  
+    plt.show() 
 
 #Plot the estimated v.s. ground truth trajectory
 fig = plt.figure(figsize=(10, 10))
@@ -228,13 +277,13 @@ est_positions = np.array([t[:3, 3] for t in estimated_transformations])
 # Compute the min, max, midpoint, and range along each axis
 mins = est_positions.min(axis=0)
 maxs = est_positions.max(axis=0)
-mid = (mins + maxs) / 2
+mid = est_positions[0]  # Use the first position as the midpoint
 max_range = (maxs - mins).max()
 
 # Set the axis limits uniformly so the plot is centered and scaled equally
-ax.set_xlim(mid[0] - max_range / 2, mid[0] + max_range / 2)
-ax.set_ylim(mid[1] - max_range / 2, mid[1] + max_range / 2)
-ax.set_zlim(mid[2] - max_range / 2, mid[2] + max_range / 2)
+ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
+ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
+ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
 
 # Plot the trajectories (assuming plot_trajectory is defined)
 plot_trajectory(estimated_transformations, ax, color='purple', show_triads=True)
@@ -244,26 +293,39 @@ ax.set_title('Camera trajectory')
 plt.show(block=False)  # Use block=False to prevent blocking
 
 # Calculate the residuals
-position_residuals, rotation_residuals = get_delta_residuals(estimated_transformations, ground_truth_transformations[:limit])
+position_residuals, rotation_residuals, ground_truth_deltas = \
+    get_delta_residuals(estimated_transformations, ground_truth_transformations[:limit])
+scaled_position_residuals, scaled_rotation_residuals = \
+    get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_deltas)
 
 mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
 mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
 
 # Calculate RMS errors
+pos_mean_x = np.mean(position_residuals[:, 0])
+pos_mean_y = np.mean(position_residuals[:, 1])
+pos_mean_z = np.mean(position_residuals[:, 2])
+
 pos_rms_x = np.sqrt(np.mean(position_residuals[:, 0]**2))
 pos_rms_y = np.sqrt(np.mean(position_residuals[:, 1]**2))
 pos_rms_z = np.sqrt(np.mean(position_residuals[:, 2]**2))
 pos_rms_total = np.sqrt(np.mean(mag_position_residuals**2))
+
+rot_mean_x = np.mean(rotation_residuals[:, 0])
+rot_mean_y = np.mean(rotation_residuals[:, 1])
+rot_mean_z = np.mean(rotation_residuals[:, 2])
 
 rot_rms_x = np.sqrt(np.mean(rotation_residuals[:, 0]**2))
 rot_rms_y = np.sqrt(np.mean(rotation_residuals[:, 1]**2))
 rot_rms_z = np.sqrt(np.mean(rotation_residuals[:, 2]**2))
 rot_rms_total = np.sqrt(np.mean(mag_rotation_residuals**2))
 
-print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}")
+print(f"Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
+print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}\n")
+print(f"Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
 print(f"Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}, Total: {rot_rms_total:.4f}")
 
-fig2 = plt.figure(figsize=(1, 5))
+fig2 = plt.figure(figsize=(10, 10))
 ax1 = fig2.add_subplot(2, 2, 1, projection='3d')
 ax2 = fig2.add_subplot(2, 2, 3, projection='3d')
 ax3 = fig2.add_subplot(2, 2, (2, 4))
@@ -271,11 +333,26 @@ ax3 = fig2.add_subplot(2, 2, (2, 4))
 ax1.plot([p[0] for p in position_residuals], 
          [p[1] for p in position_residuals], 
          [p[2] for p in position_residuals], color='r')
+# Position Residuals plot
 ax1.set_title('Position Residuals')
 ax1.set_xlabel('X')
 ax1.set_ylabel('Y')
 ax1.set_zlabel('Z')
 
+# Mark the origin with a black dot
+ax1.scatter([0], [0], [0], color='black', s=50, marker='o')
+
+# Center around origin
+pos_max_range = max(
+    abs(position_residuals[:, 0]).max(),
+    abs(position_residuals[:, 1]).max(),
+    abs(position_residuals[:, 2]).max()
+)
+ax1.set_xlim(-pos_max_range, pos_max_range)
+ax1.set_ylim(-pos_max_range, pos_max_range)
+ax1.set_zlim(-pos_max_range, pos_max_range)
+
+# Rotation Residuals plot
 ax2.plot([r[0] for r in rotation_residuals],
          [r[1] for r in rotation_residuals], 
          [r[2] for r in rotation_residuals], color='b')
@@ -283,6 +360,20 @@ ax2.set_title('Rotation Residuals')
 ax2.set_xlabel('X')
 ax2.set_ylabel('Y')
 ax2.set_zlabel('Z')
+
+
+# Mark the origin with a black dot
+ax2.scatter([0], [0], [0], color='black', s=50, marker='o')
+
+# Center around origin
+rot_max_range = max(
+    abs(rotation_residuals[:, 0]).max(),
+    abs(rotation_residuals[:, 1]).max(),
+    abs(rotation_residuals[:, 2]).max()
+)
+ax2.set_xlim(-rot_max_range, rot_max_range)
+ax2.set_ylim(-rot_max_range, rot_max_range)
+ax2.set_zlim(-rot_max_range, rot_max_range)
 
 ax3.plot(mag_position_residuals, color='r', label='Position Residuals')
 ax3.plot(mag_rotation_residuals, color='b', label='Rotation Residuals')
@@ -292,4 +383,81 @@ ax3.set_ylabel('Magnitude')
 ax3.legend()
 
 plt.tight_layout()
+plt.show(block=False)  # Use block=False to prevent blocking
+
+# Calculate RMS errors
+pos_mean_x = np.mean(scaled_position_residuals[:, 0])
+pos_mean_y = np.mean(scaled_position_residuals[:, 1])
+pos_mean_z = np.mean(scaled_position_residuals[:, 2])
+
+pos_rms_x = np.sqrt(np.mean(scaled_position_residuals[:, 0]**2))
+pos_rms_y = np.sqrt(np.mean(scaled_position_residuals[:, 1]**2))
+pos_rms_z = np.sqrt(np.mean(scaled_position_residuals[:, 2]**2))
+
+rot_mean_x = np.mean(scaled_rotation_residuals[:, 0])
+rot_mean_y = np.mean(scaled_rotation_residuals[:, 1])
+rot_mean_z = np.mean(scaled_rotation_residuals[:, 2])
+
+rot_rms_x = np.sqrt(np.mean(scaled_rotation_residuals[:, 0]**2))
+rot_rms_y = np.sqrt(np.mean(scaled_rotation_residuals[:, 1]**2))
+rot_rms_z = np.sqrt(np.mean(scaled_rotation_residuals[:, 2]**2))
+
+print(f"\n\nScaled Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
+print(f"Scaled Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}\n")
+print(f"Scaled Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
+print(f"Scaled Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}")
+
+
+fig3 = plt.figure(figsize=(10, 10))
+ax4 = fig3.add_subplot(2, 2, 1, projection='3d')
+ax5 = fig3.add_subplot(2, 2, 3, projection='3d')
+ax6 = fig3.add_subplot(2, 2, (2, 4))
+
+# Scaled Position Residuals plot
+ax4.plot([sp[0] for sp in scaled_position_residuals], 
+         [sp[1] for sp in scaled_position_residuals], 
+         [sp[2] for sp in scaled_position_residuals], color='r')
+ax4.set_title('Scaled Position Residuals')
+ax4.set_xlabel('X')
+ax4.set_ylabel('Y')
+ax4.set_zlabel('Z')
+# Mark the origin with a black dot
+ax4.scatter([0], [0], [0], color='black', s=50, marker='o')
+# Center around origin
+pos_max_range = max(
+    abs(scaled_position_residuals[:, 0]).max(),
+    abs(scaled_position_residuals[:, 1]).max(),
+    abs(scaled_position_residuals[:, 2]).max()
+)
+ax4.set_xlim(-pos_max_range, pos_max_range)
+ax4.set_ylim(-pos_max_range, pos_max_range)
+ax4.set_zlim(-pos_max_range, pos_max_range)
+
+# Scaled Rotation Residuals plot
+ax5.plot([sr[0] for sr in scaled_rotation_residuals],
+         [sr[1] for sr in scaled_rotation_residuals], 
+         [sr[2] for sr in scaled_rotation_residuals], color='b')
+ax5.set_title('Scaled Rotation Residuals')
+ax5.set_xlabel('X')
+ax5.set_ylabel('Y')
+ax5.set_zlabel('Z')
+# Mark the origin with a black dot
+ax5.scatter([0], [0], [0], color='black', s=50, marker='o')
+# Center around origin
+rot_max_range = max(
+    abs(scaled_rotation_residuals[:, 0]).max(),
+    abs(scaled_rotation_residuals[:, 1]).max(),
+    abs(scaled_rotation_residuals[:, 2]).max()
+)
+ax5.set_xlim(-rot_max_range, rot_max_range)
+ax5.set_ylim(-rot_max_range, rot_max_range)
+ax5.set_zlim(-rot_max_range, rot_max_range)
+
+ax6.plot(np.linalg.norm(scaled_position_residuals,axis=1), color='r', label='Scaled Position Residuals')
+ax6.plot(np.linalg.norm(scaled_rotation_residuals,axis=1), color='b', label='Scaled Rotation Residuals')
+ax6.set_title('Magnitude of Scaled Residuals')
+ax6.set_xlabel('Frame')
+ax6.set_ylabel('Magnitude')
+ax6.legend()
+
 plt.show()

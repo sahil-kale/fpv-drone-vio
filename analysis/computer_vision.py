@@ -590,7 +590,7 @@ def plot_3d_point_cloud(points_3d):
 
 
 #Find the transformation matrix between the two frames using the two point clouds
-def find_transformation(src_points, dst_points):
+def find_transformation(dst_points, src_points):
     """
     Find the transformation matrix between two sets of 3D points using SVD.
     
@@ -632,7 +632,7 @@ def find_transformation(src_points, dst_points):
     return T
 
 #Iterative function for finding transformation robust to outliers
-def find_transformation_iterative(src_points, dst_points, threshold=0.1, max_iterations=10, tol=1e-6):
+def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=10, tol=1e-6):
     """
     Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
 
