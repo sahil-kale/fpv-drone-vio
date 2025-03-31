@@ -63,19 +63,36 @@ for timestamp in image_timestamps:
         raise ValueError(f"No ground truth transformation found for timestamp {timestamp}")
     ground_truth_transformations.append(np.reshape([float(x) for x in closest_line], (4, 4)))
 
-def plot_trajectory(estimate, ground, ax):
-    ax.plot([t[0, 3] for t in ground],  # X coordinates
-            [t[1, 3] for t in ground],  # Y coordinates
-            [t[2, 3] for t in ground],  # Z coordinates
-            label='Ground',
-            color='k',
+def plot_trajectory(trajectory, ax, color='r', triad_scale=0.1):
+    # Plot the trajectory line
+    ax.plot([t[0, 3] for t in trajectory],  # X coordinates
+            [t[1, 3] for t in trajectory],  # Y coordinates
+            [t[2, 3] for t in trajectory],  # Z coordinates
+            color=color,
             marker='o')
-    ax.plot([t[0, 3] for t in estimate],  # X coordinates
-            [t[1, 3] for t in estimate],  # Y coordinates
-            [t[2, 3] for t in estimate],  # Z coordinates
-            label='Estimated',
-            color='r',
-            marker='o')
+    
+    # Plot orientation triads at each position
+    for T in trajectory:
+        # Extract position
+        pos = T[0:3, 3]
+        
+        # Extract rotation matrix (each column is a direction vector)
+        R = T[0:3, 0:3]
+        
+        # Draw x-axis (red)
+        ax.quiver(pos[0], pos[1], pos[2],
+                  R[0, 0], R[1, 0], R[2, 0],
+                  color='r', length=triad_scale)
+        
+        # Draw y-axis (blue)
+        ax.quiver(pos[0], pos[1], pos[2],
+                  R[0, 1], R[1, 1], R[2, 1],
+                  color='b', length=triad_scale)
+        
+        # Draw z-axis (black)
+        ax.quiver(pos[0], pos[1], pos[2],
+                  R[0, 2], R[1, 2], R[2, 2],
+                  color='k', length=triad_scale)
 
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
@@ -92,8 +109,8 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 max = len(ground_truth_transformations)
-limit = 500
-visualize = False
+limit = 50
+visualize = True
 
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
@@ -192,6 +209,8 @@ ax.set_ylim(mid[1] - max_range / 2, mid[1] + max_range / 2)
 ax.set_zlim(mid[2] - max_range / 2, mid[2] + max_range / 2)
 
 # Plot the trajectories (assuming plot_trajectory is defined)
-plot_trajectory(estimated_transformations, ground_truth_transformations[:limit], ax)
-ax.legend()
+plot_trajectory(estimated_transformations, ax, color='purple')
+plot_trajectory(ground_truth_transformations[:limit], ax, color='g')
+ax.legend(['Estimated', 'Ground Truth'])
+ax.set_title('Camera trajectory')
 plt.show()
