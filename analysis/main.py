@@ -53,6 +53,52 @@ def estimate_gyro_bias(imu_input_frames):
         gyro_bias += gyro_data
     return gyro_bias / len(imu_input_frames)
 
+
+def align_trajectories_ekf(state_estimates, state_ground_truth):
+    """
+    Aligns estimated drone trajectory to ground truth using Kabsch’s algorithm.
+    
+    Args:
+        state_estimates (list of EKFDroneState): Estimated drone states.
+        state_ground_truth (list of EKFDroneState): Ground truth states.
+
+    Returns:
+        aligned_estimates (np.ndarray): Transformed estimated positions.
+        R_opt (np.ndarray): Optimal rotation matrix (3x3).
+        t_opt (np.ndarray): Optimal translation vector (3x1).
+    """
+    # Extract world positions from the EKFDroneState objects
+    est_positions = np.array([state.get_world_position() for state in state_estimates])
+    gt_positions = np.array([state.get_world_position() for state in state_ground_truth])
+
+    # Compute centroids
+    est_centroid = np.mean(est_positions, axis=0)
+    gt_centroid = np.mean(gt_positions, axis=0)
+
+    # Center the data
+    est_centered = est_positions - est_centroid
+    gt_centered = gt_positions - gt_centroid
+
+    # Compute optimal rotation using SVD (Kabsch algorithm)
+    H = est_centered.T @ gt_centered
+    U, S, Vt = np.linalg.svd(H)
+    R_opt = Vt.T @ U.T
+
+    # Ensure a proper rotation (det(R) should be +1)
+    if np.linalg.det(R_opt) < 0:
+        Vt[-1, :] *= -1
+        R_opt = Vt.T @ U.T
+
+    # Compute optimal translation
+    t_opt = gt_centroid - R_opt @ est_centroid
+
+    # Apply transformation to align estimated positions
+    aligned_estimates = (R_opt @ est_positions.T).T + t_opt
+
+    return aligned_estimates, R_opt, t_opt
+
+
+
 # Main
 if __name__ == '__main__':
     DATASET_DIR = os.getcwd() + '/dataset/vio_dataset_1/'
@@ -109,6 +155,10 @@ if __name__ == '__main__':
     NUM_FRAMES_TO_IGNORE = 500
     NUM_FRAMES_TO_PLOT = 3000
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
+
+    gyro_bias = np.array([0,0,0])
+
+
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
@@ -146,6 +196,8 @@ if __name__ == '__main__':
     current_image_index = 1 #variable to keep track of vision data index
 
     for i, imu_input_frame in enumerate(imu_input_frames):
+        imu_input_frame.gyro_data = gt_states[i].state[6:]
+        # imu_input_frame.accel_data = gt_states[i].state[0:3]
         ekf.predict(dt, imu_input_frame)
 
         #Integrate the vision data
@@ -195,5 +247,25 @@ if __name__ == '__main__':
     # print(max(vector_error))
 
     print(ekf_states[0].get_world_position() - ekf_states[-1].get_world_position())
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True)
+
+    END_STAMP = -1
+    ekf_states = ekf_states[0:END_STAMP]
+    gt_states = gt_states[0:END_STAMP]
+    imu_timestamp = imu_timestamp[0:END_STAMP]
+
+    print(ekf_states[0].get_world_position() - ekf_states[-1].get_world_position())
+    print(gt_states[0].get_world_position())
+    print(gt_states[-1].get_world_position())
+    # breakpoint()
+
+    # for i in range(0, len(ekf_states)):
+    #     print("EKF - GT: ", ekf_states[i].get_world_position() - gt_states[i].get_world_position())
+    
+    # aligned_est, R_opt, t_opt = align_trajectories_ekf(ekf_states,gt_states)
+
+    # print("Optimal Rotation Matrix (R_opt):\n", R_opt)
+    # print("Optimal Translation Vector (t_opt):\n", t_opt)
+
+
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=5)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)

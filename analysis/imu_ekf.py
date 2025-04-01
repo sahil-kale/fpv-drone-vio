@@ -45,14 +45,12 @@ class IMUKalmanFilter:
         # Extract IMU data
         ang_vel = imu_input_frame.get_gyro_data()
         lin_acc = imu_input_frame.get_accel_data()
+        
         # Update dt
         self.dt = dt
 
-
-
         # Extract state variables
         x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
-
 
         gyro_x = ang_vel[0] - self.gyro_bias[0]
         gyro_y = ang_vel[1] - self.gyro_bias[1]
@@ -63,40 +61,31 @@ class IMUKalmanFilter:
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        world_to_drone_rotation_matrix = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item()).reshape(3, 3)
-        drone_to_world_rotation_matrix = world_to_drone_rotation_matrix.T
-       
-
-        gyro_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([gyro_x, gyro_y, gyro_z]).reshape(3, 1)
-
-        # Transfer the gyro vector to the world frame
-        gyro_world = drone_to_world_rotation_matrix @ gyro_in_drone_frame
-
-
-        # Integrate the gyro vector to get the new orientation
+        t_x = gyro_x 
+        t_y = gyro_y
+        t_z = gyro_z
         
-        # t_x += gyro_world[0] * self.dt
-        # t_y += gyro_world[1] * self.dt
-        # t_z += gyro_world[2] * self.dt
+
 
         # Transfer the acceleration vector to the world frame
-        acc_in_drone_frame = self.imu_to_drone_rotation_matrix @ np.array([acc_x, acc_y, acc_z]).reshape(3, 1)
+        world_to_drone_rotation = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item())
+        drone_to_world_rotation = world_to_drone_rotation.T
 
-        acc_world = drone_to_world_rotation_matrix @ acc_in_drone_frame - self.gravity
+        world_accel = (world_to_drone_rotation @ np.array([acc_x,acc_y,acc_z]).reshape(3,1)) + self.gravity
 
 
         # Integrate the acceleration vector to get the new position
-        x = x +  v_x*dt + 0.5*acc_world[0]*dt*dt
-        y = y +  v_y*dt + 0.5*acc_world[1]*dt*dt
-        z = z +  v_z*dt + 0.5*acc_world[2]*dt*dt
+        x = x +  v_x*dt  
+        y = y +  v_y*dt 
+        z = z +  v_z*dt
 
+        v_x = v_x + world_accel[0]*dt
+        v_y = v_y + world_accel[1]*dt
+        v_z = v_z + world_accel[2]*dt
 
-        v_x = v_x + acc_world[0]*dt
-        v_y = v_y + acc_world[1]*dt
-        v_z = v_z + acc_world[2]*dt
-
-
-
+        # x = acc_x
+        # y = acc_y
+        # z = acc_z
 
         # if self.counter < 5:
         #     print("acc_body", lin_acc.ravel())
