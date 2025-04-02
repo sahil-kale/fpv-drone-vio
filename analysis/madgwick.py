@@ -1,6 +1,6 @@
 import numpy as np
 from interface import *
-from converting_quaternion import quaternion_to_euler
+from converting_quaternion import quaternion_xyzw_to_euler
 
 class MadgwickFilter:
     def __init__(self, initial_quaternion: np.ndarray, gyro_bias: np.ndarray, mu):
@@ -70,4 +70,4 @@ class MadgwickFilter:
     
     def get_euler_angles(self):
         qw, qx, qy, qz = self.q.reshape(-1)
-        return quaternion_to_euler(qw, qx, qy, qz)
+        return quaternion_xyzw_to_euler(qx, qy, qz, qw)

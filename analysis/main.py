@@ -31,7 +31,7 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
         position_vec = np.array([position[i][0], position[i][1], position[i][2]])
         quaternion_vec = np.array([orientation[i][0], orientation[i][1], orientation[i][2], orientation[i][3]])
         # Convert quaternion to Euler angles
-        euler_vec = quaternion_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
+        euler_vec = quaternion_xyzw_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
         velocity_vec = np.array([0,0,0])
         combined_state_vec = np.concatenate((position_vec, velocity_vec, euler_vec)).reshape(-1)
         # Create EKFDroneState object
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
     parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
-    parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
+    parser.add_argument('--end-stamp', type=int, default=2500, help='Number of samples to use for simulation')
 
     args = parser.parse_args()
 
@@ -136,7 +136,8 @@ if __name__ == '__main__':
 
     # Pass into the EKF
     initial_state = gt_states[0].state
-    starting_quaternion = gt_orientation[NUM_FRAMES_TO_IGNORE]
+    starting_quaternion_xyzw = gt_orientation[NUM_FRAMES_TO_IGNORE]
+    starting_quaternion = np.array([starting_quaternion_xyzw[3], starting_quaternion_xyzw[0], starting_quaternion_xyzw[1], starting_quaternion_xyzw[2]])
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
     process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
     measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
@@ -146,8 +147,8 @@ if __name__ == '__main__':
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
-    madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.1)
-    MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 20
+    madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.01)
+    MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 5
     madgwick_filter.compute_optimal_mu(max_qdot=MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC, dt=dt) 
 
     for i, imu_input_frame in enumerate(imu_input_frames):
