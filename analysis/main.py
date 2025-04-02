@@ -8,6 +8,7 @@ from visualizer import Visualizer
 from util import conditional_breakpoint
 import computer_vision as mycv
 from vio_update_bridge import VIOTranslator
+import argparse
 
 # Need to implement data ingestion and data processing here
 
@@ -97,10 +98,19 @@ def align_trajectories_ekf(state_estimates, state_ground_truth):
 
     return aligned_estimates, R_opt, t_opt
 
-
-
 # Main
 if __name__ == '__main__':
+
+    # Add arguments for using gyro and accelerometer ground truth data
+
+    # Code to parse arguments
+    parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
+    parser.add_argument('--use-gyro-ground-truth', action='store_true', help='Whether gyro ground truth should be used')
+    parser.add_argument('--use-accel-ground-truth', action='store_true', help='Whether accelerometer ground truth should be used')
+   
+    args = parser.parse_args()
+
+
     DATASET_DIR = os.getcwd() + '/dataset/vio_dataset_1/'
 
     df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
@@ -156,9 +166,6 @@ if __name__ == '__main__':
     NUM_FRAMES_TO_PLOT = 3000
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
 
-    gyro_bias = np.array([0,0,0])
-
-
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
@@ -183,6 +190,7 @@ if __name__ == '__main__':
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
+
     #Initialize the computer vision relative odometry calculator
     vision_system = mycv.VisionRelativeOdometryCalculator(
         initial_camera_input= vision_input_frames[0],
@@ -196,8 +204,12 @@ if __name__ == '__main__':
     current_image_index = 1 #variable to keep track of vision data index
 
     for i, imu_input_frame in enumerate(imu_input_frames):
-        imu_input_frame.gyro_data = gt_states[i].state[6:]
-        # imu_input_frame.accel_data = gt_states[i].state[0:3]
+        if (args.use_gyro_ground_truth):
+            # Use gyro ground truth data
+            imu_input_frame.gyro_data = gt_states[i].state[6:9]
+        if (args.use_accel_ground_truth):
+            # Use accelerometer ground truth data
+            imu_input_frame.accel_data = gt_states[i].state[3:6]
         ekf.predict(dt, imu_input_frame)
 
         #Integrate the vision data
@@ -227,45 +239,10 @@ if __name__ == '__main__':
     ekf_orient_vector = []
     gt_orient_vector = []
 
-
-    # for i, ekf_state in enumerate(ekf_states):
-    #     ekf_orient_vector.append(np.sqrt(ekf_state.get_world_orientation()[0] ** 2 + ekf_state.get_world_orientation()[1] ** 2 + ekf_state.get_world_orientation()[2] ** 2))
-
-
-    # for i, gt_state in enumerate(gt_states):
-    #     gt_orient_vector.append(np.sqrt(gt_state.get_world_orientation()[0] ** 2 + gt_state.get_world_orientation()[1] ** 2 + gt_state.get_world_orientation()[2] ** 2))
-    
-    # vector_error = [None]*(len(gt_states))
-    # for i in range(0, len(gt_states)):
-    #     vector_error[i] = ekf_orient_vector[i] - gt_orient_vector[i]
-    
-    # for i in range(0, len(gt_states)):
-    #     if(vector_error[i] > 1 and i < 1300):
-    #         pass
-
-    
-    # print(max(vector_error))
-
-    print(ekf_states[0].get_world_position() - ekf_states[-1].get_world_position())
-
     END_STAMP = -1
     ekf_states = ekf_states[0:END_STAMP]
     gt_states = gt_states[0:END_STAMP]
     imu_timestamp = imu_timestamp[0:END_STAMP]
-
-    print(ekf_states[0].get_world_position() - ekf_states[-1].get_world_position())
-    print(gt_states[0].get_world_position())
-    print(gt_states[-1].get_world_position())
-    # breakpoint()
-
-    # for i in range(0, len(ekf_states)):
-    #     print("EKF - GT: ", ekf_states[i].get_world_position() - gt_states[i].get_world_position())
-    
-    # aligned_est, R_opt, t_opt = align_trajectories_ekf(ekf_states,gt_states)
-
-    # print("Optimal Rotation Matrix (R_opt):\n", R_opt)
-    # print("Optimal Translation Vector (t_opt):\n", t_opt)
-
 
     visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=5)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)

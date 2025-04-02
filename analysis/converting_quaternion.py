@@ -59,7 +59,7 @@ def elementary_rotation_matrix_z(theta):
     """Generate a rotation matrix for a rotation around the z-axis by theta radians."""
     return np.array([
         [np.cos(theta), -np.sin(theta), 0],
-        [np.sin(theta), np.cos(theta), 0],  
+        [np.sin(theta), np.cos(theta), 0],
         [0, 0, 1]
     ])
 

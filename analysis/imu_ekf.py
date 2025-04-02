@@ -15,7 +15,6 @@ GRAVITY_M_PER_S_SQUARED = 9.81
 #   States:
 #   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
 
-
 class IMUKalmanFilter:
     def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states, gyro_bias: np.ndarray):
         self.dt = dt
@@ -30,7 +29,7 @@ class IMUKalmanFilter:
         self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
         self.C[2:5][:] = 0 #Remove Velocity Components from output vector   
 
-        self.A = np.eye(9)
+        self.A = np.eye(self.num_states)
         self.A[0, 3] = dt  # x += v_x * dt
         self.A[1, 4] = dt
         self.A[2, 5] = dt
@@ -55,7 +54,6 @@ class IMUKalmanFilter:
         gyro_x = ang_vel[0] - self.gyro_bias[0]
         gyro_y = ang_vel[1] - self.gyro_bias[1]
         gyro_z = ang_vel[2] - self.gyro_bias[2]
-
 
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
@@ -82,28 +80,12 @@ class IMUKalmanFilter:
         v_x = v_x + world_accel[0]*dt
         v_y = v_y + world_accel[1]*dt
         v_z = v_z + world_accel[2]*dt
-
-        # x = acc_x
-        # y = acc_y
-        # z = acc_z
-
-        # if self.counter < 5:
-        #     print("acc_body", lin_acc.ravel())
-        #     print("acc_world", acc_world.ravel())
-        #     self.counter+=1
         
         self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
 
         self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
     def update(self, camera_measurments: VisionAbsoluteOdometry):
-        
-        #assume camera_masurements is the real x,y,z pos
-
-        # Kalman Gain: K = P_k|k-1 * C^T (C*P_k|k-1*C^T + R_k )^-1
-        # X_k|k = x_k|k-1 + K * (z_k - z_k|k-1)
-        # P_k,k = (I - KC)P_k|k-1
-
         measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
 
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
