@@ -834,8 +834,8 @@ class VisionRelativeOdometryCalculator:
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential frames
-    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png")
-    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png")
+    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png", 0)
+    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png", 1)
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
