@@ -18,6 +18,14 @@ def preprocess_images(left_image, right_image):
     #Convert to grayscale
     left_gray = cv2.cvtColor(left_image, cv2.COLOR_BGR2GRAY)
     right_gray = cv2.cvtColor(right_image, cv2.COLOR_BGR2GRAY)
+
+    # Edge-preserving smoothing with bilateral filter
+    # d: diameter of pixel neighborhood; sigmaColor: filter sigma in color space;
+    # sigmaSpace: filter sigma in coordinate space.
+    left_gray = cv2.bilateralFilter(left_gray, d=9, sigmaColor=75, sigmaSpace=75)
+    right_gray = cv2.bilateralFilter(right_gray, d=9, sigmaColor=75, sigmaSpace=75)
+
+
     return left_gray, right_gray
 
 #Detect "keypoints" and compute descriptors using a feature detector
@@ -42,13 +50,13 @@ class ORBFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.orb.detectAndCompute(image, None)
-        return keypoints, descriptors
+        return keypoints, 
 
 class SIFTFeatureExtractor(FeatureExtractor):
     """
     Feature extractor using SIFT (Scale-Invariant Feature Transform) algorithm
     """
-    def __init__(self, n_features=500):
+    def __init__(self, n_features=3000):
         self.n_features = n_features
         self.sift = cv2.SIFT_create(nfeatures=n_features)
     
@@ -96,7 +104,7 @@ class FLANNMatcher(FeatureMatcher):
     Feature matcher using FLANN (Fast Library for Approximate Nearest Neighbors) algorithm
     """
     def __init__(self):
-        self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=5), dict(checks=50))
+        self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), dict(checks=60))
     
     def match_features(self, left_descriptors, right_descriptors):
         matches = self.flann.knnMatch(left_descriptors, right_descriptors, k=2)
@@ -222,7 +230,9 @@ class StereoProjection:
             self.K1_new = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 self.K1, self.dist_coeffs1, (self.resX1, self.resY1), np.eye(3), balance=1)
             
-            # No need to redefine the projection matrices here
+            self.P0 = self.K0_new @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0_new * [I | 0]
+            self.P1 = self.K1_new @ np.hstack((self.R, self.t))  # P1 = K1_new * [R | t]
+
         elif self.distortion_type == "normal":
             # Use standard distortion model
             self.dist_coeffs0 = np.array([self.dist_coeffs0[0], self.dist_coeffs0[1], self.dist_coeffs0[2], self.dist_coeffs0[3], 0])
@@ -231,10 +241,9 @@ class StereoProjection:
             self.K0_new, _ = cv2.getOptimalNewCameraMatrix(self.K0, self.dist_coeffs0, (self.resX0, self.resY0), 1, (self.resX0, self.resY0))
             self.K1_new, _ = cv2.getOptimalNewCameraMatrix(self.K1, self.dist_coeffs1, (self.resX1, self.resY1), 1, (self.resX1, self.resY1))
             #Don't use distortion
-        self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
-        self.P1 = self.K1 @ np.hstack((self.R, self.t))  # P1 = K1 * [R | t]
-
-
+        else:
+            self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
+            self.P1 = self.K1 @ np.hstack((self.R, self.t))  # P1 = K1 * [R | t]
 
     #Function to calculate and visualize distortion correction
     def undistort_image(self, image, camera_matrix, dist_coeffs, camera="left"):
@@ -294,7 +303,7 @@ class StereoProjection:
         return points_3D.T
 
 
-    def plot_undistorted_points(self, points_left, points_right, image_left, image_right):
+    def plot_undistorted_points(self, points_left, points_right, image_left, image_right, axes=None, animate=False):
         """
         Plot the undistorted points on the undistorted images.
 
@@ -316,9 +325,11 @@ class StereoProjection:
         points_left_undistorted = [cv2.KeyPoint(p[0], p[1], 1) for p in points_left_undistorted]
         points_right_undistorted = [cv2.KeyPoint(p[0], p[1], 1) for p in points_right_undistorted]
 
-
-        #Plot the points on the images
-        show_keypoints(image_left_undistorted, points_left_undistorted, image_right_undistorted, points_right_undistorted)
+        if animate:
+            animate_keypoints(image_left_undistorted, points_left_undistorted, image_right_undistorted, points_right_undistorted, axes)
+        else:
+            #Plot the points on the images
+            show_keypoints(image_left_undistorted, points_left_undistorted, image_right_undistorted, points_right_undistorted)
 
     def undistort_points(self, points, camera="left"):
         if camera == "left":
@@ -405,6 +416,32 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
     # Display the plot
     plt.tight_layout()
     plt.show()
+
+def animate_keypoints(image1, keypoints1, image2, keypoints2, axes, draw_rich_keypoints=False):
+    # Draw keypoints on the first image
+    image_with_keypoints1 = cv2.drawKeypoints(
+        image1, keypoints1, None,
+        flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
+        color=(0, 255, 0)
+    )
+
+    # Draw keypoints on the second image
+    image_with_keypoints2 = cv2.drawKeypoints(
+        image2, keypoints2, None,
+        flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
+        color=(0, 255, 0)
+    )
+
+    # **Check if images exist, otherwise initialize them**
+    if not hasattr(axes[0], "img"):
+        axes[0].img = axes[0].imshow(image_with_keypoints1, cmap="gray")
+        axes[1].img = axes[1].imshow(image_with_keypoints2, cmap="gray")
+    else:
+        axes[0].img.set_data(image_with_keypoints1)
+        axes[1].img.set_data(image_with_keypoints2)
+
+    plt.draw()
+    plt.pause(0.05)
 
 def show_points(image1, points1, image2, points2, point_cloud):
     """
@@ -553,7 +590,7 @@ def plot_3d_point_cloud(points_3d):
 
 
 #Find the transformation matrix between the two frames using the two point clouds
-def find_transformation(src_points, dst_points):
+def find_transformation(dst_points, src_points):
     """
     Find the transformation matrix between two sets of 3D points using SVD.
     
@@ -594,10 +631,85 @@ def find_transformation(src_points, dst_points):
     
     return T
 
+#Iterative function for finding transformation robust to outliers
+def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=10, tol=1e-6):
+    """
+    Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
+
+    :param src_points: Source points (Nx3 array)
+    :param dst_points: Destination points (Nx3 array)
+    :param threshold: Distance threshold for weighting points
+    :param max_iterations: Max iterations for iterative refinement
+    :param tol: Convergence threshold based on transformation difference
+    :return: 4x4 transformation matrix
+    """
+    # Initialize transformation matrix
+    T = np.eye(4)
+    src_points_homogeneous = np.hstack((src_points, np.ones((src_points.shape[0], 1))))
+    
+    for _ in range(max_iterations):
+        # Apply current transformation to the original source points (avoids accumulating drift)
+        src_transformed = (T @ src_points_homogeneous.T).T[:, :3]
+
+        # Compute distances
+        distances = np.linalg.norm(src_transformed - dst_points, axis=1)
+
+        # Robust weighting using Huber loss
+        delta = threshold  # Huber delta parameter
+        weights = np.where(distances <= delta, 1, delta / distances)
+        weights /= np.sum(weights)  # Normalize
+
+        # Compute weighted centroids
+        src_centroid = np.average(src_transformed, axis=0, weights=weights)
+        dst_centroid = np.average(dst_points, axis=0, weights=weights)
+
+        # Center points
+        src_centered = src_transformed - src_centroid
+        dst_centered = dst_points - dst_centroid
+
+        # Apply weights
+        src_centered_weighted = src_centered * weights[:, np.newaxis]
+        dst_centered_weighted = dst_centered * weights[:, np.newaxis]
+
+        # Compute weighted covariance
+        H = src_centered_weighted.T @ dst_centered_weighted
+        U, _, Vt = np.linalg.svd(H)
+        R = Vt.T @ U.T
+
+        # Ensure a proper rotation (prevent reflection)
+        if np.linalg.det(R) < 0:
+            Vt[-1, :] *= -1
+            R = Vt.T @ U.T
+
+        # Compute translation
+        t = dst_centroid - R @ src_centroid
+
+        # Construct new transformation matrix
+        T_new = np.eye(4)
+        T_new[:3, :3] = R
+        T_new[:3, 3] = t
+
+        # Damped update to prevent overshooting (smooth blending)
+        alpha = 0.5  # Lower values slow down updates
+        T = alpha * (T_new @ T) + (1 - alpha) * T
+
+        # Check convergence
+        if np.linalg.norm(T_new - T) < tol:
+            break
+
+    return T
+
+
 def update_camera_pose(T_relative):
     global T_world_to_current
     T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
     return T_world_to_current
+
+T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
+            [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
+            [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
+            [ 0., 0., 0., 1. ]])
+T_cam2drone =T_cam02imu0
 
 class FeatureData:
     def __init__(self, filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors):
@@ -671,7 +783,7 @@ class VisionRelativeOdometryCalculator:
         
         return consistent_matches1, consistent_matches2
     
-    def calculate_relative_odometry_homogenous(self, input_frame:interface.VisionInputFrame) -> np.ndarray:
+    def calculate_relative_odometry_homogenous(self, input_frame:interface.VisionInputFrame, camera_frame=False) -> np.ndarray:
         #Update the current feature data from the input images
         self.update_current_feature_data(input_frame)
 
@@ -683,26 +795,47 @@ class VisionRelativeOdometryCalculator:
                                                self.previous_feature_data.right_keypoints)
         points1 = self.StereoPair.triangulate_points(np.array(pl1), np.array(pr1), use_normalized_projection=True)
 
-        pl1, pr1 = extract_points_from_matches(consistent_matches2,
+        pl2, pr2 = extract_points_from_matches(consistent_matches2,
                                         self.current_feature_data.left_keypoints,
                                         self.current_feature_data.right_keypoints)
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-        transformation = find_transformation(points1, points2)
+        transformation = find_transformation_iterative(points1, points2)
+        if not(camera_frame):
+            transformation = (
+                T_cam2drone @
+                transformation @ 
+                np.linalg.inv(T_cam2drone)
+            )
 
         self.previous_feature_data = self.current_feature_data
 
         return transformation
     
-    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame) -> interface.VisionRelativeOdometry:
-        homo_transformation = self.calculate_relative_odometry(input_frame)
+    def calculate_relative_odometry(self, input_frame:interface.VisionInputFrame, camera_frame=False) -> interface.VisionRelativeOdometry:
+        if camera_frame:
+            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=True)
+        else:
+            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=False)
         return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(homo_transformation)
 
+    def plot_point_clouds(self, points1_world, points2_world):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        ax.scatter(points1_world[:, 0], points1_world[:, 1], points1_world[:, 2], c='r', marker='o')
+        ax.scatter(points2_world[:, 0], points2_world[:, 1], points2_world[:, 2], c='b', marker='o')
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+        plt.show()
 
 if __name__ == "__main__":
-    # load in a stereo pair and two sequential flames
-    frame1 = interface.VisionInputFrame("analysis/image_0_0.png", "analysis/image_1_0.png")
-    frame2 = interface.VisionInputFrame("analysis/image_0_1.png", "analysis/image_1_1.png")
+    # load in a stereo pair and two sequential frames
+    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png")
+    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png")
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)
@@ -768,7 +901,7 @@ if __name__ == "__main__":
     pl2, pr2 = extract_points_from_matches(consistent_matches2, l2_keypoints, r2_keypoints)
     points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-
+    #print("plotting undistorted points")
     StereoPair.plot_undistorted_points(pl1, pr1, left1, right1)
     
     # Find transformation between frame 1 and frame 2
@@ -801,6 +934,7 @@ if __name__ == "__main__":
     
     
     show_points(left1, pl1, right1, pr1, points1)
+    show_points(left2, pl2, right2, pr2, points2)
 
     #transform points1 to the world frame
     points1_world = np.dot(T_cam_imu0, np.dot(T_world_to_current, np.vstack((points1.T, np.ones(points1.shape[0])))))
@@ -811,7 +945,7 @@ if __name__ == "__main__":
     old_cam_pos = old_cam_pos[:3]
 
     # Transform points2 to the new world frame
-    points2_world = np.dot(T_world_to_current2, np.vstack((points2.T, np.ones(points2.shape[0]))))
+    points2_world = np.dot(T_cam_imu0, np.dot(T_world_to_current2, np.vstack((points2.T, np.ones(points2.shape[0])))))
     points2_world = points2_world[:3].T
 
     # Get new camera pos in world coords
@@ -829,6 +963,8 @@ if __name__ == "__main__":
     print(f"Delta y: {true_cam_pos[1] - new_cam_pos[1]}")
     print(f"Delta z: {true_cam_pos[2] - new_cam_pos[2]}")
 
+    print(old_cam_pos[0], old_cam_pos[1], old_cam_pos[2])
+    print(true_cam_pos[0], true_cam_pos[1], true_cam_pos[2])
 
     #plot the old points in the world frame in red, and the new ones in blue in the same plot
     fig = plt.figure()
@@ -838,7 +974,7 @@ if __name__ == "__main__":
     ax.scatter(points2_world[:, 0], points2_world[:, 1], points2_world[:, 2], c='b', marker='o')
 
     #plot old camera pos in green
-    ax.scatter(old_cam_pos[0], old_cam_pos[1], old_cam_pos[2], c='g', marker='v', s=100)
+    ax.scatter(true_cam_pos[0], true_cam_pos[1], true_cam_pos[2], c='g', marker='v', s=100)
 
     #plot new camera pos in purple
     ax.scatter(new_cam_pos[0], new_cam_pos[1], new_cam_pos[2], c='purple', marker='^', facecolors='none', s=100)
@@ -848,17 +984,3 @@ if __name__ == "__main__":
     ax.set_zlabel('Z')
 
     plt.show()
-
-
-
-
-#List of images (L & R)1, (L & R)2, (L & R)3, ... (L & R)n
-# Find common features shared within the set
-# Overlapping windows of frames and pick features you can find in all frames
-
-#Once identified, go back into LR pairs and find 3D point cloud for those features
-
-#Classes:
-#Image Pair
-#Feature
-#Point Cloud - List of points and those points are associated with features
