@@ -7,6 +7,7 @@ from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
 import argparse
+from madgwick import MadgwickFilter
 
 # Need to implement data ingestion and data processing here
 
@@ -52,50 +53,6 @@ def estimate_gyro_bias(imu_input_frames):
         gyro_bias += gyro_data
     return gyro_bias / len(imu_input_frames)
 
-
-def align_trajectories_ekf(state_estimates, state_ground_truth):
-    """
-    Aligns estimated drone trajectory to ground truth using Kabsch’s algorithm.
-    
-    Args:
-        state_estimates (list of EKFDroneState): Estimated drone states.
-        state_ground_truth (list of EKFDroneState): Ground truth states.
-
-    Returns:
-        aligned_estimates (np.ndarray): Transformed estimated positions.
-        R_opt (np.ndarray): Optimal rotation matrix (3x3).
-        t_opt (np.ndarray): Optimal translation vector (3x1).
-    """
-    # Extract world positions from the EKFDroneState objects
-    est_positions = np.array([state.get_world_position() for state in state_estimates])
-    gt_positions = np.array([state.get_world_position() for state in state_ground_truth])
-
-    # Compute centroids
-    est_centroid = np.mean(est_positions, axis=0)
-    gt_centroid = np.mean(gt_positions, axis=0)
-
-    # Center the data
-    est_centered = est_positions - est_centroid
-    gt_centered = gt_positions - gt_centroid
-
-    # Compute optimal rotation using SVD (Kabsch algorithm)
-    H = est_centered.T @ gt_centered
-    U, S, Vt = np.linalg.svd(H)
-    R_opt = Vt.T @ U.T
-
-    # Ensure a proper rotation (det(R) should be +1)
-    if np.linalg.det(R_opt) < 0:
-        Vt[-1, :] *= -1
-        R_opt = Vt.T @ U.T
-
-    # Compute optimal translation
-    t_opt = gt_centroid - R_opt @ est_centroid
-
-    # Apply transformation to align estimated positions
-    aligned_estimates = (R_opt @ est_positions.T).T + t_opt
-
-    return aligned_estimates, R_opt, t_opt
-
 # Main
 if __name__ == '__main__':
 
@@ -105,7 +62,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
     parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
-    parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
+    parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
 
     args = parser.parse_args()
@@ -162,12 +119,12 @@ if __name__ == '__main__':
     imu_timestamp = imu_timestamp[index_at_which_imu_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
-    NUM_FRAMES_TO_PLOT = 3000
+    END_STAMP = args.end_stamp
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
 
-    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
-    imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
-    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
+    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:END_STAMP]
+    imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:END_STAMP]
+    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:END_STAMP]
 
     index_at_which_vision_data_is_synced = 0
     for i, timestamp in enumerate(image_timestamps):
@@ -179,7 +136,7 @@ if __name__ == '__main__':
 
     # Pass into the EKF
     initial_state = gt_states[0].state
-
+    starting_quaternion = gt_orientation[NUM_FRAMES_TO_IGNORE]
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
     process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
     measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
@@ -189,20 +146,20 @@ if __name__ == '__main__':
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
+    madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.1)
+    MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 20
+    madgwick_filter.compute_optimal_mu(max_qdot=MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC, dt=dt) 
+
     for i, imu_input_frame in enumerate(imu_input_frames):
+        madgwick_filter.update(imu_input_frame, dt)
         if (args.use_gyro_ground_truth):
             # Use gyro ground truth data
             imu_input_frame.gyro_data = gt_states[i].state[6:9]
+        else:
+            imu_input_frame.gyro_data = madgwick_filter.get_euler_angles()
+
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
-
-    ekf_orient_vector = []
-    gt_orient_vector = []
-
-    END_STAMP = args.end_stamp
-    ekf_states = ekf_states[0:END_STAMP]
-    gt_states = gt_states[0:END_STAMP]
-    imu_timestamp = imu_timestamp[0:END_STAMP]
 
     visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
