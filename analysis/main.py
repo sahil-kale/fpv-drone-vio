@@ -6,6 +6,8 @@ from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
+import computer_vision as mycv
+from vio_update_bridge import VIOTranslator
 
 # Need to implement data ingestion and data processing here
 
@@ -84,6 +86,7 @@ if __name__ == '__main__':
 
     imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
 
+#   # Load the left and right image paths
     img_paths_left_txt_file = DATASET_DIR + 'left_images.txt'
     img_paths_right_txt_file = DATASET_DIR + 'right_images.txt'
     df_img_paths_left = load_data(img_paths_left_txt_file)
@@ -130,8 +133,43 @@ if __name__ == '__main__':
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
 
+    #Initialize the computer vision relative odometry calculator
+    vision_system = mycv.VisionRelativeOdometryCalculator(
+        initial_camera_input= vision_input_frames[0],
+        feature_extractor= mycv.SIFTFeatureExtractor(),
+        feature_matcher= mycv.FLANNMatcher(),
+        feature_match_filter= mycv.RANSACFeatureMatchFilter()
+    )
+    #VIOTranslator object to integrate the vision data
+    vio_translator = VIOTranslator(initial_state=gt_states[0])
+
+    current_image_index = 1 #variable to keep track of vision data index
+
     for i, imu_input_frame in enumerate(imu_input_frames):
         ekf.predict(dt, imu_input_frame)
+
+        #Integrate the vision data
+        if imu_timestamp[i] >= image_timestamps[current_image_index]:
+            if current_image_index < len(vision_input_frames):
+                vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
+                current_image_index += 1
+
+                vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
+            
+                #Update the EKF with the vision absolute odometry
+                abs_cv_state = vio_translator.get_current_state_vector()
+                absolute_translation_vector = abs_cv_state[:3]
+
+                vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
+
+            # -- Update the EKF using the vision absolute odometry --
+            ekf.update(vision_absolute_odometry)
+
+            # We only update this right after using the vision to update the ekf,
+            # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1
+            vio_translator.update_state_estimate(ekf.get_state())
+
+
         ekf_states.append(ekf.get_state())
     
     visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True)
