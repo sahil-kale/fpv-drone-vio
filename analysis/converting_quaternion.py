@@ -68,7 +68,7 @@ def euler_to_rotation_matrix(t_x, t_y, t_z):
     rot_y = elementary_rotation_matrix_y(t_y)
     rot_x = elementary_rotation_matrix_x(t_x)
 
-    combined = rot_x @ rot_y @ rot_z
+    combined = rot_z @ rot_y @ rot_x
     assert combined.shape == (3, 3), "Combined rotation matrix must be of shape (3, 3)"
     return combined
 

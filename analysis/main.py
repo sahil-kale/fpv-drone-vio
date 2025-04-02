@@ -6,6 +6,7 @@ from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
+import argparse
 
 # Need to implement data ingestion and data processing here
 
@@ -51,8 +52,65 @@ def estimate_gyro_bias(imu_input_frames):
         gyro_bias += gyro_data
     return gyro_bias / len(imu_input_frames)
 
+
+def align_trajectories_ekf(state_estimates, state_ground_truth):
+    """
+    Aligns estimated drone trajectory to ground truth using Kabsch’s algorithm.
+    
+    Args:
+        state_estimates (list of EKFDroneState): Estimated drone states.
+        state_ground_truth (list of EKFDroneState): Ground truth states.
+
+    Returns:
+        aligned_estimates (np.ndarray): Transformed estimated positions.
+        R_opt (np.ndarray): Optimal rotation matrix (3x3).
+        t_opt (np.ndarray): Optimal translation vector (3x1).
+    """
+    # Extract world positions from the EKFDroneState objects
+    est_positions = np.array([state.get_world_position() for state in state_estimates])
+    gt_positions = np.array([state.get_world_position() for state in state_ground_truth])
+
+    # Compute centroids
+    est_centroid = np.mean(est_positions, axis=0)
+    gt_centroid = np.mean(gt_positions, axis=0)
+
+    # Center the data
+    est_centered = est_positions - est_centroid
+    gt_centered = gt_positions - gt_centroid
+
+    # Compute optimal rotation using SVD (Kabsch algorithm)
+    H = est_centered.T @ gt_centered
+    U, S, Vt = np.linalg.svd(H)
+    R_opt = Vt.T @ U.T
+
+    # Ensure a proper rotation (det(R) should be +1)
+    if np.linalg.det(R_opt) < 0:
+        Vt[-1, :] *= -1
+        R_opt = Vt.T @ U.T
+
+    # Compute optimal translation
+    t_opt = gt_centroid - R_opt @ est_centroid
+
+    # Apply transformation to align estimated positions
+    aligned_estimates = (R_opt @ est_positions.T).T + t_opt
+
+    return aligned_estimates, R_opt, t_opt
+
 # Main
 if __name__ == '__main__':
+
+    # Add arguments for using gyro and accelerometer ground truth data
+
+    # Code to parse arguments
+    parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
+    parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
+    parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
+    parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
+    parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
+
+    args = parser.parse_args()
+
+
     DATASET_DIR = os.getcwd() + '/dataset/vio_dataset_1/'
 
     df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
@@ -106,6 +164,7 @@ if __name__ == '__main__':
     NUM_FRAMES_TO_IGNORE = 500
     NUM_FRAMES_TO_PLOT = 3000
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
+
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
@@ -131,8 +190,19 @@ if __name__ == '__main__':
     ekf_states = []
 
     for i, imu_input_frame in enumerate(imu_input_frames):
+        if (args.use_gyro_ground_truth):
+            # Use gyro ground truth data
+            imu_input_frame.gyro_data = gt_states[i].state[6:9]
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
-    
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True)
+
+    ekf_orient_vector = []
+    gt_orient_vector = []
+
+    END_STAMP = args.end_stamp
+    ekf_states = ekf_states[0:END_STAMP]
+    gt_states = gt_states[0:END_STAMP]
+    imu_timestamp = imu_timestamp[0:END_STAMP]
+
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
