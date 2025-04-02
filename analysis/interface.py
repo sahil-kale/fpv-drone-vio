@@ -82,11 +82,14 @@ class VisionRelativeOdometry:
 def create_VisionRelativeOdometry_from_homogeneous_matrix(T: np.ndarray):
     assert T.shape == (4, 4), "Homogeneous matrix must be of shape (4, 4)"
     relative_translation_vector = T[:3, 3]
-    relative_rotation_matrix = T[:3, :3]
-    relative_rotation_vector = np.array([0, 0, 0])
-    relative_rotation_vector[0] = np.arctan2(relative_rotation_matrix[2, 1], relative_rotation_matrix[2, 2])
-    relative_rotation_vector[1] = np.arctan2(-relative_rotation_matrix[2, 0], np.sqrt(relative_rotation_matrix[2, 1] ** 2 + relative_rotation_matrix[2, 2] ** 2))
-    relative_rotation_vector[2] = np.arctan2(relative_rotation_matrix[1, 0], relative_rotation_matrix[0, 0])
+    # relative_rotation_matrix = T[:3, :3]
+    # relative_rotation_vector = np.array([0, 0, 0])
+    # relative_rotation_vector[0] = np.arctan2(relative_rotation_matrix[2, 1], relative_rotation_matrix[2, 2])
+    # relative_rotation_vector[1] = np.arctan2(-relative_rotation_matrix[2, 0], np.sqrt(relative_rotation_matrix[2, 1] ** 2 + relative_rotation_matrix[2, 2] ** 2))
+    # relative_rotation_vector[2] = np.arctan2(relative_rotation_matrix[1, 0], relative_rotation_matrix[0, 0])
+
+    # -- For now we are using a zero vector and neglecting rotation --
+    relative_rotation_vector = np.zeros((3,))
     return VisionRelativeOdometry(relative_translation_vector, relative_rotation_vector)
     
 class VisionAbsoluteOdometry:
