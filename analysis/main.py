@@ -9,6 +9,8 @@ from util import conditional_breakpoint
 import computer_vision as mycv
 from vio_update_bridge import VIOTranslator
 import argparse
+import computer_vision as mycv
+from vio_update_bridge import VIOTranslator
 
 # Need to implement data ingestion and data processing here
 
@@ -191,7 +193,6 @@ if __name__ == '__main__':
     dt = 0.002
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
-
 
     #Initialize the computer vision relative odometry calculator
     vision_system = mycv.VisionRelativeOdometryCalculator(
