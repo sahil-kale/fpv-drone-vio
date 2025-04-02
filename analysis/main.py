@@ -103,9 +103,11 @@ if __name__ == '__main__':
 
     # Code to parse arguments
     parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
-    parser.add_argument('--use-gyro-ground-truth', action='store_true', help='Whether gyro ground truth should be used')
-    parser.add_argument('--use-accel-ground-truth', action='store_true', help='Whether accelerometer ground truth should be used')
-   
+    parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
+    parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
+    parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
+    parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
+
     args = parser.parse_args()
 
 
@@ -191,19 +193,16 @@ if __name__ == '__main__':
         if (args.use_gyro_ground_truth):
             # Use gyro ground truth data
             imu_input_frame.gyro_data = gt_states[i].state[6:9]
-        if (args.use_accel_ground_truth):
-            # Use accelerometer ground truth data
-            imu_input_frame.accel_data = gt_states[i].state[3:6]
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
 
     ekf_orient_vector = []
     gt_orient_vector = []
 
-    END_STAMP = -1
+    END_STAMP = args.end_stamp
     ekf_states = ekf_states[0:END_STAMP]
     gt_states = gt_states[0:END_STAMP]
     imu_timestamp = imu_timestamp[0:END_STAMP]
 
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=5)
+    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
