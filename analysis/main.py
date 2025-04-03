@@ -227,6 +227,7 @@ if __name__ == '__main__':
                 if current_image_index == 0:
                     # Use the first image to initialize the VIOTranslator
                     vio_translator = VIOTranslator(initial_state=ekf.get_state())
+                    current_image_index += 1
                 else:
                     vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
                     current_image_index += 1
@@ -239,12 +240,12 @@ if __name__ == '__main__':
 
                     # vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
 
-            # -- Update the EKF using the vision absolute odometry --
-            ekf.update(vio_translator.get_current_state_vector())
+                    # -- Update the EKF using the vision absolute odometry --
+                    ekf.update(np.concatenate((vio_translator.get_current_state_vector()[:3], ekf.get_state().state[3:])))
 
-            # We only update this right after using the vision to update the ekf,
-            # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1
-            vio_translator.update_state_estimate(ekf.get_state())
+                    # We only update this right after using the vision to update the ekf,
+                    # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1
+                    vio_translator.update_state_estimate(ekf.get_state())
 
 
         ekf_states.append(ekf.get_state())

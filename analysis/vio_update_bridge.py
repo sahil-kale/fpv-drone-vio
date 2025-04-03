@@ -2,7 +2,7 @@ import numpy as np
 from interface import *
 from scipy.spatial.transform import Rotation as R
 
-def euler_to_rotation_matrix(euler_vec, order='zyx'): #TODO: This order needs to be checked.
+def euler_to_rotation_matrix(euler_vec, order='xyz'): #TODO: This order needs to be checked.
     """
     Converts Euler angles to a rotation matrix.
     
@@ -23,23 +23,22 @@ class VIOTranslator:
     
     def integrate_predicted_state_estimate(self, vision_relative_odometery: VisionRelativeOdometry):
         translation_vector = vision_relative_odometery.get_relative_translation_vector() 
-        rotation_vector = vision_relative_odometery.get_relative_rotation_vector() # theta x, theta y, theta z
 
-        rotation_matrix = euler_to_rotation_matrix(self.initial_state.get_state()[6:])
+        rotation_matrix = self.get_prev_state_rotation_matrix()
 
         # Rotate the relative translation into the world frame
         rotated_translation = rotation_matrix @ translation_vector #TODO: Check if this should be inverted
         
-        delta_state = np.concatenate((rotated_translation, np.zeros(6)))
-        assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
+        # delta_state = np.concatenate((rotated_translation, np.zeros(6)))
+        # assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
         # Rotate the relative translation into the world frame
 
-        self.initial_state.state += delta_state
+        self.initial_state.state[:3] += rotated_translation
         assert self.initial_state.state.shape == (9,), "State vector must be of shape (9,)"
 
     def get_prev_state_rotation_matrix(self):
         prev_state = self.initial_state.get_state()
-        euler_vec = prev_state[3:]
+        euler_vec = prev_state[6:]
         rotation_matrix = euler_to_rotation_matrix(euler_vec)
         return rotation_matrix
     

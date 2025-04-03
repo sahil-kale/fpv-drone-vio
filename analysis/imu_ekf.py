@@ -90,7 +90,7 @@ class IMUKalmanFilter:
         measurement_vector = np.concatenate((cam_meas, np.zeros(self.num_states - len(cam_meas))))
         measurement_vector = measurement_vector.reshape(self.num_states, 1)
 
-        self.K = np.transpose(self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R)))
+        self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
         self.state = self.state + self.K @ ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
