@@ -111,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
     parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
-    parser.add_argument('--use_vision_update', type=bool, default=True, help='Whether to use the VIO update')
+    parser.add_argument('--use-vision-update', type=bool, default=True, help='Whether to use the VIO update')
 
     args = parser.parse_args()
 

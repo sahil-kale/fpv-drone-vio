@@ -25,7 +25,7 @@ class VIOTranslator:
         translation_vector = vision_relative_odometery.get_relative_translation_vector() 
         rotation_vector = vision_relative_odometery.get_relative_rotation_vector() # theta x, theta y, theta z
 
-        rotation_matrix = euler_to_rotation_matrix(self.initial_state.get_state()[3:6])
+        rotation_matrix = euler_to_rotation_matrix(self.initial_state.get_state()[6:])
 
         # Rotate the relative translation into the world frame
         rotated_translation = np.dot(rotation_matrix, translation_vector) #TODO: Check if this should be inverted
