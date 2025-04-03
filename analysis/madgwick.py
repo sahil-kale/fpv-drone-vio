@@ -18,6 +18,15 @@ class MadgwickFilter:
     def compute_optimal_mu(self, max_qdot, dt, alpha=1.0):
         self.mu = alpha * max_qdot * dt
         return self.mu
+    
+    def determine_mu_from_accel(self, accel_data):
+        mu_lookup_y = np.array([0.0, self.mu, 0.0])
+        x_mu_lookup_const = 0.5 # how far away we allow the norm to be
+        GRAVITY_M_PER_S2 = 9.81
+        mu_lookup_x = np.array([GRAVITY_M_PER_S2 - GRAVITY_M_PER_S2*x_mu_lookup_const, GRAVITY_M_PER_S2, GRAVITY_M_PER_S2 + GRAVITY_M_PER_S2*x_mu_lookup_const])
+
+        accel_norm = np.linalg.norm(accel_data)
+        return np.interp(accel_norm, mu_lookup_x, mu_lookup_y)
 
     def quaternion_multiplication(self, q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
         # https://en.wikipedia.org/wiki/Quaternion#Hamilton_product
@@ -57,7 +66,7 @@ class MadgwickFilter:
         
         gradient = J.T @ f
         gradient_norm = np.linalg.norm(gradient)
-        correction_qdot_from_accel = self.mu * gradient/gradient_norm
+        correction_qdot_from_accel = self.determine_mu_from_accel(accel_data) * gradient/gradient_norm
         q_dot = q_dot_from_gyro - correction_qdot_from_accel
         q_new = self.q + q_dot * dt
         q_new_norm = np.linalg.norm(q_new)
