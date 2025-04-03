@@ -27,7 +27,7 @@ class IMUKalmanFilter:
         
         self.K = np.eye(self.num_states)
         self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
-        self.C[2:5][:] = 0 #Remove Velocity Components from output vector   
+        self.C[6:][:] = 0 #Remove Velocity Components from output vector   
 
         self.A = np.eye(self.num_states)
         self.A[0, 3] = dt  # x += v_x * dt
@@ -85,11 +85,13 @@ class IMUKalmanFilter:
 
         self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
-    def update(self, camera_measurments: VisionAbsoluteOdometry):
-        measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
+    def update(self, camera_measurements: VisionAbsoluteOdometry):
+        cam_meas = camera_measurements
+        measurement_vector = np.concatenate((cam_meas, np.zeros(self.num_states - len(cam_meas))))
+        measurement_vector = measurement_vector.reshape(self.num_states, 1)
 
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
-        self.state = self.state + self.K * ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
+        self.state = self.state + self.K @ ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z
         self.P = (np.eye(self.num_states) - self.K @ self.C) @ self.P
 
     def get_state(self) -> EKFDroneState:

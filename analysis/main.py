@@ -6,6 +6,8 @@ from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
+import computer_vision as mycv
+from vio_update_bridge import VIOTranslator
 import argparse
 from madgwick import MadgwickFilter
 from visualizer_orientation import VisualizerOrientationOnly
@@ -66,7 +68,6 @@ if __name__ == '__main__':
     # Code to parse arguments
     parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
     parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
-    parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
     parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=2500, help='Number of samples to use for simulation')
     VISUALIZER_TYPES = [
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     imu_timestamp = df_imu[1]
     angular_velocity = df_imu.iloc[:, 2:5]
     acceleration = df_imu.iloc[:, 5:8]
-
+    
     # Convert into numpy arrays
     imu_timestamp = imu_timestamp.to_numpy()[1:].astype(float)
     acceleration = acceleration.to_numpy()[1:].astype(float)
@@ -109,6 +110,7 @@ if __name__ == '__main__':
 
     imu_input_frames = develop_array_of_imu_input_frame(imu_timestamp, acceleration, angular_velocity)
 
+#   # Load the left and right image paths
     img_paths_left_txt_file = DATASET_DIR + 'left_images.txt'
     img_paths_right_txt_file = DATASET_DIR + 'right_images.txt'
     df_img_paths_left = load_data(img_paths_left_txt_file)
@@ -118,6 +120,10 @@ if __name__ == '__main__':
     image_paths_right = df_img_paths_right.iloc[:, 2].tolist()[1:]
     vision_input_frames = develop_array_of_vision_input_frame(DATASET_DIR, image_timestamps, image_paths_left, image_paths_right)
     
+    # Small delay between imu timestamps and camera timestamps
+    IMU0_CAM_SYNC_OFFSET = 0.0166845720919
+    image_timestamps = image_timestamps + IMU0_CAM_SYNC_OFFSET
+
     # IMU and CAM data start recording earlier than GT data
     index_at_which_imu_data_is_synced = 0
     for i, timestamp in enumerate(imu_timestamp):
@@ -150,8 +156,8 @@ if __name__ == '__main__':
     starting_quaternion_xyzw = gt_orientation[NUM_FRAMES_TO_IGNORE]
     starting_quaternion = np.array([starting_quaternion_xyzw[3], starting_quaternion_xyzw[0], starting_quaternion_xyzw[1], starting_quaternion_xyzw[2]])
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
-    process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
-    measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
+    process_noise = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
+    measurement_noise = np.array([0.1, 0.1, 0.8, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
 
     NUM_STATES = 9
     dt = 0.002
@@ -166,6 +172,22 @@ if __name__ == '__main__':
     rms_position_error = [0, 0, 0]
     len_input_frames = len(imu_input_frames)
 
+    #Initialize the computer vision relative odometry calculator
+    vision_system = mycv.VisionRelativeOdometryCalculator(
+        initial_camera_input= vision_input_frames[0],
+        feature_extractor= mycv.SIFTFeatureExtractor(n_features=1000),
+        feature_matcher= mycv.FLANNMatcher(trees=5, checks=40),
+        feature_match_filter= mycv.RANSACFilter(min_matches=12, reproj_thresh=1.5),
+        alpha = 0.5,
+        transformation_threshold=0.05
+    )
+
+    current_image_index = 0 #variable to keep track of vision data index
+
+    madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.01)
+    MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 5
+    madgwick_filter.compute_optimal_mu(max_qdot=MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC, dt=dt) 
+
     for i, imu_input_frame in enumerate(imu_input_frames):
         madgwick_filter.update(imu_input_frame, dt)
         if (args.use_gyro_ground_truth):
@@ -178,6 +200,29 @@ if __name__ == '__main__':
             madgwick_states.append(orientation_state)
 
         ekf.predict(dt, imu_input_frame)
+
+        #Integrate the vision data
+
+        if imu_timestamp[i] >= image_timestamps[current_image_index]:
+            if current_image_index < len(vision_input_frames):
+                if current_image_index == 0:
+                    # Use the first image to initialize the VIOTranslator
+                    vio_translator = VIOTranslator(initial_state=ekf.get_state())
+                    current_image_index += 1
+                else:
+                    vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
+                    current_image_index += 1
+
+                    vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
+
+                    # -- Update the EKF using the vision absolute odometry --
+                    ekf.update(vio_translator.get_current_state_vector())
+
+                    # We only update this right after using the vision to update the ekf,
+                    # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1
+                    vio_translator.update_state_estimate(ekf.get_state())
+
+
         ekf_states.append(ekf.get_state())
 
         for i in range(len(rms_position_error)):

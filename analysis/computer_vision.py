@@ -50,7 +50,7 @@ class ORBFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.orb.detectAndCompute(image, None)
-        return keypoints, 
+        return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
 class SIFTFeatureExtractor(FeatureExtractor):
     """
@@ -74,7 +74,7 @@ class AKAZEFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.akaze.detectAndCompute(image, None)
-        return keypoints, descriptors
+        return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
 #Match Features between Left and Right Images
 class FeatureMatcher(ABC):
@@ -103,7 +103,7 @@ class FLANNMatcher(FeatureMatcher):
     """
     Feature matcher using FLANN (Fast Library for Approximate Nearest Neighbors) algorithm
     """
-    def __init__(self):
+    def __init__(self, trees=10, checks=100):
         self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), dict(checks=60))
     
     def match_features(self, left_descriptors, right_descriptors):
@@ -632,7 +632,7 @@ def find_transformation(dst_points, src_points):
     return T
 
 #Iterative function for finding transformation robust to outliers
-def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=10, tol=1e-6):
+def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=5, tol=1e-6):
     """
     Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
 
@@ -656,7 +656,7 @@ def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_ite
 
         # Robust weighting using Huber loss
         delta = threshold  # Huber delta parameter
-        weights = np.where(distances <= delta, 1, delta / distances)
+        weights = np.where(distances <= delta, 1, delta / np.maximum(distances, 1e-8))
         weights /= np.sum(weights)  # Normalize
 
         # Compute weighted centroids
@@ -719,6 +719,8 @@ class FeatureData:
         self.right_keypoints = right_keypoints
         self.right_descriptors = right_descriptors
 
+from scipy.spatial.transform import Rotation, Slerp
+
 class VisionRelativeOdometryCalculator:
     """
     Pass this a stream of VisionInputFrames and it will calculate the relative odometry between each pair of frames.
@@ -729,7 +731,7 @@ class VisionRelativeOdometryCalculator:
     * 
     """
     
-    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter):
+    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter, alpha=1, transformation_threshold=0.1):
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
         self.feature_match_filter = feature_match_filter
@@ -738,6 +740,10 @@ class VisionRelativeOdometryCalculator:
         self.update_current_feature_data(initial_camera_input)
         self.previous_feature_data = self.current_feature_data
         self.StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
+        self.alpha=alpha
+        self.filtered_R = None
+        self.filtered_t = None
+        self.transformation_threshold = transformation_threshold
     
     def update_current_feature_data(self, input:interface.VisionInputFrame):
         left_image, right_image = load_images(input)
@@ -800,13 +806,35 @@ class VisionRelativeOdometryCalculator:
                                         self.current_feature_data.right_keypoints)
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-        transformation = find_transformation_iterative(points1, points2)
+        transformation = find_transformation_iterative(points1, points2, threshold =self.transformation_threshold)
         if not(camera_frame):
             transformation = (
                 T_cam2drone @
                 transformation @ 
                 np.linalg.inv(T_cam2drone)
             )
+
+        if self.alpha != 1:
+            # Apply exponential smoothing to the transformation matrix
+            R_new = transformation[:3, :3]
+            t_new = transformation[:3, 3]
+            if self.filtered_R is None:
+                self.filtered_R = R_new.copy()
+                self.filtered_t = t_new.copy()
+            else:
+                # Filter the translation
+                self.filtered_t = self.alpha * t_new + (1 - self.alpha) * self.filtered_t
+
+                # Filter the rotation using quaternions
+                key_times = [0, 1]
+                key_rotations = Rotation.from_matrix([self.filtered_R, R_new])
+                slerp = Slerp(key_times, key_rotations)
+                self.filtered_R = slerp(self.alpha).as_matrix()
+            
+            # Combine filtered rotation and translation into a transformation matrix
+            transformation = np.eye(4)
+            transformation[:3, :3] = self.filtered_R
+            transformation[:3, 3] = self.filtered_t
 
         self.previous_feature_data = self.current_feature_data
 
@@ -816,7 +844,7 @@ class VisionRelativeOdometryCalculator:
         if camera_frame:
             homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=True)
         else:
-            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=False)
+            homo_transformation = self.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
         return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(homo_transformation)
 
     def plot_point_clouds(self, points1_world, points2_world):
@@ -834,8 +862,8 @@ class VisionRelativeOdometryCalculator:
 
 if __name__ == "__main__":
     # load in a stereo pair and two sequential frames
-    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png")
-    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png")
+    frame1 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1500.png", "dataset/vio_dataset_1/img/image_1_1500.png", 0)
+    frame2 = interface.VisionInputFrame("dataset/vio_dataset_1/img/image_0_1501.png", "dataset/vio_dataset_1/img/image_1_1501.png", 1)
 
     left1, right1 = load_images(frame1)
     left2, right2 = load_images(frame2)

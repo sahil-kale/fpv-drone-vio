@@ -1,11 +1,26 @@
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 from interface import VisionInputFrame, VisionRelativeOdometry
 import computer_vision as mycv
 import cv2
+cv2.setNumThreads(1)
+
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation, Slerp
+from itertools import product
+import logging
+from multiprocessing_logging import install_mp_handler
 
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(processName)s - %(message)s')
+install_mp_handler() 
+
+from multiprocessing import Pool
 
 # Read ground truth file and get the first timestamp
 with open(r'dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt') as f:
@@ -38,9 +53,9 @@ if len(left_images) != len(right_images):
     raise ValueError("The number of left and right images do not match.")
 
 first_valid_index = next(i for i, ts in enumerate(image_timestamps) if ts >= first_gt_time)
-image_timestamps = image_timestamps[first_valid_index:]
-left_images = left_images[first_valid_index:]
-right_images = right_images[first_valid_index:]
+image_timestamps = image_timestamps[first_valid_index+500:]
+left_images = left_images[first_valid_index+500:]
+right_images = right_images[first_valid_index+500:]
 
 # Load homogenous ground truth coordinates of the prism
 ground_truth_transformations = []
@@ -174,272 +189,393 @@ ground_truth_transformations = ground_truth_transformations[start_frame:]
 
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
-initial_frame = VisionInputFrame(left_images[0], right_images[0])
+initial_frame = VisionInputFrame(left_images[0], right_images[0], timestamp=image_timestamps[0])
+def get_search_ranges(center_val, delta, min_val, max_val):
+    return sorted(set([
+        max(min_val, center_val - delta),
+        center_val,
+        min(max_val, center_val + delta)
+    ]))
 
-odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
-                                              feature_extractor=mycv.SIFTFeatureExtractor(),
-                                              feature_matcher=mycv.FLANNMatcher(),
-                                              feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=1))
+feature_extractors = [
+    ("ORB", mycv.ORBFeatureExtractor),
+    ("SIFT", mycv.SIFTFeatureExtractor),
+    ("AKAZE", mycv.AKAZEFeatureExtractor)
+]
 
-#Set up arrays to track pose
-estimated_transformations = []
-estimated_transformations.append(ground_truth_transformations[0])
+initial_n_features = [1000, 2000, 3000]
+initial_trees = [4, 6, 8]
+initial_checks = [50, 100, 150]
+initial_reproj = [0.5, 1.0, 1.5]
+initial_thresh = [0.05, 0.1, 0.15]
 
-counter = 0
-maximum = len(ground_truth_transformations)
-limit = maximum 
-alpha_t = 1
-alpha_R = 1
-filtered_R = np.eye(3)
-filtered_t = np.zeros(3)
+best_score = float("inf")
+best_config = None
+# Score definition
+def compute_score(pos_res, rot_res):
+    return (np.var(pos_res) + np.var(rot_res)) + 10 * (np.abs(np.mean(pos_res)) + np.abs(np.mean(rot_res)))
 
-for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
-    if i >= limit - 1:
-        break
-    print(i)
+# Run evaluation on grid
+
+from multiprocessing import Pool, cpu_count
+from itertools import product
+
+# Local gradient descent using local search around each parameter
+searched_configs = set()
+
+def process_config(config_key_and_class):
+    config_key, feat_class = config_key_and_class
+    feat_name, n_feat, trees, checks, reproj, thresh = config_key
+    logging.info(f"Processing config: {config_key}")
+
+    try:
+        odometry_calculator = mycv.VisionRelativeOdometryCalculator(
+            initial_camera_input=initial_frame,
+            feature_extractor=feat_class(n_features=n_feat),
+            feature_matcher=mycv.FLANNMatcher(trees=trees, checks=checks),
+            feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=reproj),
+            transformation_threshold=thresh
+        )
+
+        estimated_transformations = [ground_truth_transformations[0]]
+
+        for i, (left, right) in enumerate(zip(left_images, right_images), start=1):
+            if i >= 200: break
+            input_frame = VisionInputFrame(left, right, timestamp=image_timestamps[i])
+            rel = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
+            estimated_transformations.append(estimated_transformations[-1] @ rel)
+
+        pos_res, rot_res, _ = get_delta_residuals(estimated_transformations, ground_truth_transformations[:300])
+        score = compute_score(pos_res, rot_res)
+        return score, config_key
+
+    except Exception as e:
+        print(f"Failed config: {config_key} | Error: {e}")
+        return float('inf'), config_key
+
+def local_gradient_descent(start_config, extractor_class, steps=3):
+    global best_score, best_config, searched_configs
+    feat_name, n_feat, trees, checks, reproj, thresh = start_config
+
+    for step in range(steps):
+        best_score = 1e6
+        feature_extractors = [(feat_name, extractor_class)]
+
+        n_features_vals = get_search_ranges(n_feat, 500, 500, 3000)
+        trees_vals = get_search_ranges(trees, 1, 2, 16)
+        checks_vals = get_search_ranges(checks, 10, 10, 300)
+        reproj_vals = get_search_ranges(reproj, 0.1, 0.1, 3.0)
+        thresh_vals = get_search_ranges(thresh, 0.01, 0.01, 0.15)
+
+        print(f"\n--- Local Gradient Step {step+1} for {start_config} ---")
+
+        all_configs = [
+            ((feat_name, n_feat_i, trees_i, checks_i, reproj_i, thresh_i), feat_class)
+            for (feat_name, feat_class), n_feat_i, trees_i, checks_i, reproj_i, thresh_i in product(
+                feature_extractors, n_features_vals, trees_vals, checks_vals, reproj_vals, thresh_vals)
+            if (feat_name, n_feat_i, trees_i, checks_i, reproj_i, thresh_i) not in searched_configs
+        ]
+
+        for config_key, _ in all_configs:
+            searched_configs.add(config_key)
+
+        with Pool(processes=min(16, cpu_count())) as pool:
+            results = pool.map(process_config, all_configs)
+
+        for score, config_key in results:
+            if score < best_score:
+                best_score = score
+                best_config = config_key
+                print(f"New best score: {score:.4f} | Config: {best_config}")
+            else:
+                logging.info(f"Score: {score:.4f} | Config: {config_key}")
+
+        # Use the best from this round as new center
+        if best_config:
+            _, n_feat, trees, checks, reproj, thresh = best_config
+
+# Start from two known good configurations
+start_configs = [
+    ('SIFT', 2000, 8, 150, 1.5, 0.05),
+    ('SIFT', 1000, 4, 50, 1.5, 0.05)
+]
+
+if __name__ == "__main__":
+    for start_config in start_configs:
+        best_score = float("inf")
+        extractor_class = next(c for n, c in feature_extractors if n == start_config[0])
+        local_gradient_descent(start_config, extractor_class, steps=3)
+
+    print("\nBest Overall Config:")
+    print(best_config)
+
+
+# odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
+#                                               feature_extractor=mycv.AKAZEFeatureExtractor(n_features=1000),
+#                                               feature_matcher=mycv.FLANNMatcher(trees=10, checks=100),
+#                                               feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=1),
+#                                               transformation_threshold=0.1)
+
+# #Set up arrays to track pose
+# estimated_transformations = []
+# estimated_transformations.append(ground_truth_transformations[0])
+
+# counter = 0
+# maximum = len(ground_truth_transformations)
+# limit = 300
+
+# for i, (left_image, right_image) in enumerate(zip(left_images, right_images), start=1):
+#     if i >= limit - 1:
+#         break
+#     print(i)
     
-    input_frame = VisionInputFrame(left_image, right_image)
+#     input_frame = VisionInputFrame(left_image, right_image, timestamp=image_timestamps[i])
 
-    # Calculate the relative odometry between the previous and new input frame
-    relative_transformation = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
+#     # Calculate the relative odometry between the previous and new input frame
+#     relative_transformation = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
 
-    # Decompose the relative transformation into rotation (R_new) and translation (t_new)
-    R_new = relative_transformation[:3, :3]
-    t_new = relative_transformation[:3, 3]
-
-    if i == 0:
-        filtered_R = R_new.copy()
-        filtered_t = t_new.copy()
-    else:        
-        # Filter the translation
-        filtered_t = alpha_t * t_new + (1 - alpha_t) * filtered_t
-        
-        # Filter the rotation using quaternions
-        key_times = [0, 1]
-        key_rots = Rotation.from_matrix([filtered_R, R_new])
-        slerp = Slerp(key_times, key_rots)
-        rot_filtered = slerp(alpha_R)
-        filtered_R = rot_filtered.as_matrix()
-
-    # Recompose the filtered relative transformation
-    filtered_relative_transformation = np.eye(4)
-    filtered_relative_transformation[:3, :3] = filtered_R
-    filtered_relative_transformation[:3, 3] = filtered_t
-
-    # Apply the new transformation to the previous one to get the new world position
-    estimated_transformations.append(estimated_transformations[-1] @ filtered_relative_transformation)
-
-#Plot the estimated v.s. ground truth trajectory
-fig = plt.figure(figsize=(10, 10))
-ax = fig.add_subplot(111, projection='3d')
-ax.set_title('Camera trajectory')
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-
-#Extract just translation
-est_positions = np.array([t[:3, 3] for t in estimated_transformations])
-
-# Compute the min, max, midpoint, and range along each axis
-mins = est_positions.min(axis=0)
-maxs = est_positions.max(axis=0)
-mid = est_positions[0]  # Use the first position as the midpoint
-max_range = (maxs - mins).max()
-
-# Set the axis limits uniformly so the plot is centered and scaled equally
-ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
-ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
-ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
-
-# Plot the trajectories (assuming plot_trajectory is defined)
-plot_trajectory(estimated_transformations, ax, color='purple', show_triads=True)
-plot_trajectory(ground_truth_transformations[:limit], ax, color='g', show_triads=True)
-ax.legend(['Estimated', 'Ground Truth'])
-ax.set_title('Camera trajectory')
-plt.show(block=False)  # Use block=False to prevent blocking
-
-# Calculate the residuals
-position_residuals, rotation_residuals, ground_truth_deltas = \
-    get_delta_residuals(estimated_transformations, ground_truth_transformations[:limit])
-scaled_position_residuals, scaled_rotation_residuals = \
-    get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_deltas)
-
-mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
-mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
-
-# Calculate RMS errors
-pos_mean_x = np.mean(position_residuals[:, 0])
-pos_mean_y = np.mean(position_residuals[:, 1])
-pos_mean_z = np.mean(position_residuals[:, 2])
-
-pos_rms_x = np.sqrt(np.mean(position_residuals[:, 0]**2))
-pos_rms_y = np.sqrt(np.mean(position_residuals[:, 1]**2))
-pos_rms_z = np.sqrt(np.mean(position_residuals[:, 2]**2))
-pos_rms_total = np.sqrt(np.mean(mag_position_residuals**2))
-
-rot_mean_x = np.mean(rotation_residuals[:, 0])
-rot_mean_y = np.mean(rotation_residuals[:, 1])
-rot_mean_z = np.mean(rotation_residuals[:, 2])
-
-rot_rms_x = np.sqrt(np.mean(rotation_residuals[:, 0]**2))
-rot_rms_y = np.sqrt(np.mean(rotation_residuals[:, 1]**2))
-rot_rms_z = np.sqrt(np.mean(rotation_residuals[:, 2]**2))
-rot_rms_total = np.sqrt(np.mean(mag_rotation_residuals**2))
-
-print(f"Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
-print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}\n")
-print(f"Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
-print(f"Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}, Total: {rot_rms_total:.4f}")
-
-fig2 = plt.figure(figsize=(10, 10))
-ax1 = fig2.add_subplot(2, 2, 1, projection='3d')
-ax2 = fig2.add_subplot(2, 2, 3, projection='3d')
-ax3 = fig2.add_subplot(2, 2, (2, 4))
-
-ax1.plot([p[0] for p in position_residuals], 
-         [p[1] for p in position_residuals], 
-         [p[2] for p in position_residuals], color='r')
-# Position Residuals plot
-ax1.set_title('Position Residuals')
-ax1.set_xlabel('X')
-ax1.set_ylabel('Y')
-ax1.set_zlabel('Z')
-
-# Mark the origin with a black dot
-ax1.scatter([0], [0], [0], color='black', s=50, marker='o')
-
-# Center around origin
-pos_max_range = max(
-    abs(position_residuals[:, 0]).max(),
-    abs(position_residuals[:, 1]).max(),
-    abs(position_residuals[:, 2]).max()
-)
-ax1.set_xlim(-pos_max_range, pos_max_range)
-ax1.set_ylim(-pos_max_range, pos_max_range)
-ax1.set_zlim(-pos_max_range, pos_max_range)
-
-# Rotation Residuals plot
-ax2.plot([r[0] for r in rotation_residuals],
-         [r[1] for r in rotation_residuals], 
-         [r[2] for r in rotation_residuals], color='b')
-ax2.set_title('Rotation Residuals')
-ax2.set_xlabel('X')
-ax2.set_ylabel('Y')
-ax2.set_zlabel('Z')
+#     # Decompose the relative transformation into rotation (R_new) and translation (t_new)
+#     R_new = relative_transformation[:3, :3]
+#     t_new = relative_transformation[:3, 3]
 
 
-# Mark the origin with a black dot
-ax2.scatter([0], [0], [0], color='black', s=50, marker='o')
+#     filtered_R = R_new.copy()
+#     filtered_t = t_new.copy()
 
-# Center around origin
-rot_max_range = max(
-    abs(rotation_residuals[:, 0]).max(),
-    abs(rotation_residuals[:, 1]).max(),
-    abs(rotation_residuals[:, 2]).max()
-)
-ax2.set_xlim(-rot_max_range, rot_max_range)
-ax2.set_ylim(-rot_max_range, rot_max_range)
-ax2.set_zlim(-rot_max_range, rot_max_range)
+#     # Recompose the filtered relative transformation
+#     filtered_relative_transformation = np.eye(4)
+#     filtered_relative_transformation[:3, :3] = filtered_R
+#     filtered_relative_transformation[:3, 3] = filtered_t
 
-ax3.plot(mag_position_residuals, color='r', label='Position Residuals')
-ax3.plot(mag_rotation_residuals, color='b', label='Rotation Residuals')
-ax3.set_title('Magnitude of Residuals')
-ax3.set_xlabel('Frame')
-ax3.set_ylabel('Magnitude')
-ax3.legend()
+#     # Apply the new transformation to the previous one to get the new world position
+#     estimated_transformations.append(estimated_transformations[-1] @ filtered_relative_transformation)
 
-plt.tight_layout()
-plt.show(block=False)  # Use block=False to prevent blocking
+# #Plot the estimated v.s. ground truth trajectory
+# fig = plt.figure(figsize=(10, 10))
+# ax = fig.add_subplot(111, projection='3d')
+# ax.set_title('Camera trajectory')
+# ax.set_xlabel('X')
+# ax.set_ylabel('Y')
+# ax.set_zlabel('Z')
 
-# Calculate RMS errors
-pos_mean_x = np.mean(scaled_position_residuals[:, 0])
-pos_mean_y = np.mean(scaled_position_residuals[:, 1])
-pos_mean_z = np.mean(scaled_position_residuals[:, 2])
+# #Extract just translation
+# est_positions = np.array([t[:3, 3] for t in estimated_transformations])
 
-pos_rms_x = np.sqrt(np.mean(scaled_position_residuals[:, 0]**2))
-pos_rms_y = np.sqrt(np.mean(scaled_position_residuals[:, 1]**2))
-pos_rms_z = np.sqrt(np.mean(scaled_position_residuals[:, 2]**2))
+# # Compute the min, max, midpoint, and range along each axis
+# mins = est_positions.min(axis=0)
+# maxs = est_positions.max(axis=0)
+# mid = est_positions[0]  # Use the first position as the midpoint
+# max_range = (maxs - mins).max()
 
-rot_mean_x = np.mean(scaled_rotation_residuals[:, 0])
-rot_mean_y = np.mean(scaled_rotation_residuals[:, 1])
-rot_mean_z = np.mean(scaled_rotation_residuals[:, 2])
+# # Set the axis limits uniformly so the plot is centered and scaled equally
+# ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
+# ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
+# ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
 
-rot_rms_x = np.sqrt(np.mean(scaled_rotation_residuals[:, 0]**2))
-rot_rms_y = np.sqrt(np.mean(scaled_rotation_residuals[:, 1]**2))
-rot_rms_z = np.sqrt(np.mean(scaled_rotation_residuals[:, 2]**2))
+# # Plot the trajectories (assuming plot_trajectory is defined)
+# plot_trajectory(estimated_transformations, ax, color='purple', show_triads=True)
+# plot_trajectory(ground_truth_transformations[:limit], ax, color='g', show_triads=True)
+# ax.legend(['Estimated', 'Ground Truth'])
+# ax.set_title('Camera trajectory')
+# plt.show(block=False)  # Use block=False to prevent blocking
 
-print(f"\n\nScaled Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
-print(f"Scaled Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}\n")
-print(f"Scaled Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
-print(f"Scaled Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}")
+# # Calculate the residuals
+# position_residuals, rotation_residuals, ground_truth_deltas = \
+#     get_delta_residuals(estimated_transformations, ground_truth_transformations[:limit])
+# scaled_position_residuals, scaled_rotation_residuals = \
+#     get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_deltas)
+
+# mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
+# mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
+
+# # Calculate RMS errors
+# pos_mean_x = np.mean(position_residuals[:, 0])
+# pos_mean_y = np.mean(position_residuals[:, 1])
+# pos_mean_z = np.mean(position_residuals[:, 2])
+
+# pos_var_x = np.var(position_residuals[:, 0])
+# pos_var_y = np.var(position_residuals[:, 1])
+# pos_var_z = np.var(position_residuals[:, 2])
+
+# pos_rms_x = np.sqrt(np.mean(position_residuals[:, 0]**2))
+# pos_rms_y = np.sqrt(np.mean(position_residuals[:, 1]**2))
+# pos_rms_z = np.sqrt(np.mean(position_residuals[:, 2]**2))
+# pos_rms_total = np.sqrt(np.mean(mag_position_residuals**2))
+
+# rot_mean_x = np.mean(rotation_residuals[:, 0])
+# rot_mean_y = np.mean(rotation_residuals[:, 1])
+# rot_mean_z = np.mean(rotation_residuals[:, 2])
+
+# rot_var_x = np.var(rotation_residuals[:, 0])
+# rot_var_y = np.var(rotation_residuals[:, 1])
+# rot_var_z = np.var(rotation_residuals[:, 2])
+
+# rot_rms_x = np.sqrt(np.mean(rotation_residuals[:, 0]**2))
+# rot_rms_y = np.sqrt(np.mean(rotation_residuals[:, 1]**2))
+# rot_rms_z = np.sqrt(np.mean(rotation_residuals[:, 2]**2))
+# rot_rms_total = np.sqrt(np.mean(mag_rotation_residuals**2))
+
+# print(f"Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
+# print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}\n")
+# print(f"Position Variance - X: {pos_var_x:.4f}, Y: {pos_var_y:.4f}, Z: {pos_var_z:.4f}")
+
+# print(f"Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
+# print(f"Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}, Total: {rot_rms_total:.4f}")
+# print(f"Rotation Variance - X: {rot_var_x:.4f}, Y: {rot_var_y:.4f}, Z: {rot_var_z:.4f}")
+
+# fig2 = plt.figure(figsize=(10, 10))
+# ax1 = fig2.add_subplot(2, 2, 1, projection='3d')
+# ax2 = fig2.add_subplot(2, 2, 3, projection='3d')
+# ax3 = fig2.add_subplot(2, 2, (2, 4))
+
+# ax1.plot([p[0] for p in position_residuals], 
+#          [p[1] for p in position_residuals], 
+#          [p[2] for p in position_residuals], color='r')
+# # Position Residuals plot
+# ax1.set_title('Position Residuals')
+# ax1.set_xlabel('X')
+# ax1.set_ylabel('Y')
+# ax1.set_zlabel('Z')
+
+# # Mark the origin with a black dot
+# ax1.scatter([0], [0], [0], color='black', s=50, marker='o')
+
+# # Center around origin
+# pos_max_range = max(
+#     abs(position_residuals[:, 0]).max(),
+#     abs(position_residuals[:, 1]).max(),
+#     abs(position_residuals[:, 2]).max()
+# )
+# ax1.set_xlim(-pos_max_range, pos_max_range)
+# ax1.set_ylim(-pos_max_range, pos_max_range)
+# ax1.set_zlim(-pos_max_range, pos_max_range)
+
+# # Rotation Residuals plot
+# ax2.plot([r[0] for r in rotation_residuals],
+#          [r[1] for r in rotation_residuals], 
+#          [r[2] for r in rotation_residuals], color='b')
+# ax2.set_title('Rotation Residuals')
+# ax2.set_xlabel('X')
+# ax2.set_ylabel('Y')
+# ax2.set_zlabel('Z')
 
 
-fig3 = plt.figure(figsize=(10, 10))
-ax4 = fig3.add_subplot(2, 2, 1, projection='3d')
-ax5 = fig3.add_subplot(2, 2, 3, projection='3d')
-ax6 = fig3.add_subplot(2, 2, (2, 4))
+# # Mark the origin with a black dot
+# ax2.scatter([0], [0], [0], color='black', s=50, marker='o')
 
-# Scaled Position Residuals plot
-ax4.plot([sp[0] for sp in scaled_position_residuals], 
-         [sp[1] for sp in scaled_position_residuals], 
-         [sp[2] for sp in scaled_position_residuals], color='r')
-ax4.set_title('Scaled Position Residuals')
-ax4.set_xlabel('X')
-ax4.set_ylabel('Y')
-ax4.set_zlabel('Z')
-# Mark the origin with a black dot
-ax4.scatter([0], [0], [0], color='black', s=50, marker='o')
-# Center around origin
-pos_max_range = max(
-    abs(scaled_position_residuals[:, 0]).max(),
-    abs(scaled_position_residuals[:, 1]).max(),
-    abs(scaled_position_residuals[:, 2]).max()
-)
-ax4.set_xlim(-pos_max_range, pos_max_range)
-ax4.set_ylim(-pos_max_range, pos_max_range)
-ax4.set_zlim(-pos_max_range, pos_max_range)
+# # Center around origin
+# rot_max_range = max(
+#     abs(rotation_residuals[:, 0]).max(),
+#     abs(rotation_residuals[:, 1]).max(),
+#     abs(rotation_residuals[:, 2]).max()
+# )
+# ax2.set_xlim(-rot_max_range, rot_max_range)
+# ax2.set_ylim(-rot_max_range, rot_max_range)
+# ax2.set_zlim(-rot_max_range, rot_max_range)
 
-# Scaled Rotation Residuals plot
-ax5.plot([sr[0] for sr in scaled_rotation_residuals],
-         [sr[1] for sr in scaled_rotation_residuals], 
-         [sr[2] for sr in scaled_rotation_residuals], color='b')
-ax5.set_title('Scaled Rotation Residuals')
-ax5.set_xlabel('X')
-ax5.set_ylabel('Y')
-ax5.set_zlabel('Z')
-# Mark the origin with a black dot
-ax5.scatter([0], [0], [0], color='black', s=50, marker='o')
-# Center around origin
-rot_max_range = max(
-    abs(scaled_rotation_residuals[:, 0]).max(),
-    abs(scaled_rotation_residuals[:, 1]).max(),
-    abs(scaled_rotation_residuals[:, 2]).max()
-)
-ax5.set_xlim(-rot_max_range, rot_max_range)
-ax5.set_ylim(-rot_max_range, rot_max_range)
-ax5.set_zlim(-rot_max_range, rot_max_range)
+# ax3.plot(position_residuals[:, 0], color='r', label='Position Residuals X')
+# ax3.plot(position_residuals[:, 1], color='g', label='Position Residuals Y')
+# ax3.plot(position_residuals[:, 2], color='k', label='Position Residuals Z')
+# ax3.plot(rotation_residuals[:, 0], color='magenta', label='Rotation Residuals X')
+# ax3.plot(rotation_residuals[:, 1], color='cyan', label='Rotation Residuals Y')
+# ax3.plot(rotation_residuals[:, 2], color='purple', label='Rotation Residuals Z')
+# ax3.set_title('Magnitude of Residuals')
+# ax3.set_xlabel('Frame')
+# ax3.set_ylabel('Magnitude')
+# ax3.legend()
 
-ax6.plot(np.linalg.norm(scaled_position_residuals,axis=1), color='r', label='Scaled Position Residuals')
-ax6.plot(np.linalg.norm(scaled_rotation_residuals,axis=1), color='b', label='Scaled Rotation Residuals')
-ax6.set_title('Magnitude of Scaled Residuals')
-ax6.set_xlabel('Frame')
-ax6.set_ylabel('Magnitude')
-ax6.legend()
+# plt.tight_layout()
+# plt.show(block=False)  # Use block=False to prevent blocking
 
-plt.show(block=False)
+# # Calculate RMS errors
+# pos_mean_x = np.mean(scaled_position_residuals[:, 0])
+# pos_mean_y = np.mean(scaled_position_residuals[:, 1])
+# pos_mean_z = np.mean(scaled_position_residuals[:, 2])
 
-#Plot distributions of residuals x, y, z, rotx, roty, rotz
-fig4, axs = plt.subplots(2, 3, figsize=(15, 10))
-axs[0, 0].hist(position_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[0, 0].set_title('Position Residuals X')
-axs[0, 1].hist(position_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[0, 1].set_title('Position Residuals Y')
-axs[0, 2].hist(position_residuals[:, 2], bins=50, color='b', alpha=0.7)
-axs[1, 0].hist(rotation_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[1, 0].set_title('Rotation Residuals X')
-axs[1, 1].hist(rotation_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[1, 1].set_title('Rotation Residuals Y')
-axs[1, 2].hist(rotation_residuals[:, 2], bins=50, color='b', alpha=0.7)
-fig4.suptitle('Residuals Distributions')
-plt.tight_layout()
-plt.show()
+# pos_rms_x = np.sqrt(np.mean(scaled_position_residuals[:, 0]**2))
+# pos_rms_y = np.sqrt(np.mean(scaled_position_residuals[:, 1]**2))
+# pos_rms_z = np.sqrt(np.mean(scaled_position_residuals[:, 2]**2))
+
+# rot_mean_x = np.mean(scaled_rotation_residuals[:, 0])
+# rot_mean_y = np.mean(scaled_rotation_residuals[:, 1])
+# rot_mean_z = np.mean(scaled_rotation_residuals[:, 2])
+
+# rot_rms_x = np.sqrt(np.mean(scaled_rotation_residuals[:, 0]**2))
+# rot_rms_y = np.sqrt(np.mean(scaled_rotation_residuals[:, 1]**2))
+# rot_rms_z = np.sqrt(np.mean(scaled_rotation_residuals[:, 2]**2))
+
+# print(f"\n\nScaled Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
+# print(f"Scaled Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}\n")
+# print(f"Scaled Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
+# print(f"Scaled Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}")
+
+
+# fig3 = plt.figure(figsize=(10, 10))
+# ax4 = fig3.add_subplot(2, 2, 1, projection='3d')
+# ax5 = fig3.add_subplot(2, 2, 3, projection='3d')
+# ax6 = fig3.add_subplot(2, 2, (2, 4))
+
+# # Scaled Position Residuals plot
+# ax4.plot([sp[0] for sp in scaled_position_residuals], 
+#          [sp[1] for sp in scaled_position_residuals], 
+#          [sp[2] for sp in scaled_position_residuals], color='r')
+# ax4.set_title('Scaled Position Residuals')
+# ax4.set_xlabel('X')
+# ax4.set_ylabel('Y')
+# ax4.set_zlabel('Z')
+# # Mark the origin with a black dot
+# ax4.scatter([0], [0], [0], color='black', s=50, marker='o')
+# # Center around origin
+# pos_max_range = max(
+#     abs(scaled_position_residuals[:, 0]).max(),
+#     abs(scaled_position_residuals[:, 1]).max(),
+#     abs(scaled_position_residuals[:, 2]).max()
+# )
+# ax4.set_xlim(-pos_max_range, pos_max_range)
+# ax4.set_ylim(-pos_max_range, pos_max_range)
+# ax4.set_zlim(-pos_max_range, pos_max_range)
+
+# # Scaled Rotation Residuals plot
+# ax5.plot([sr[0] for sr in scaled_rotation_residuals],
+#          [sr[1] for sr in scaled_rotation_residuals], 
+#          [sr[2] for sr in scaled_rotation_residuals], color='b')
+# ax5.set_title('Scaled Rotation Residuals')
+# ax5.set_xlabel('X')
+# ax5.set_ylabel('Y')
+# ax5.set_zlabel('Z')
+# # Mark the origin with a black dot
+# ax5.scatter([0], [0], [0], color='black', s=50, marker='o')
+# # Center around origin
+# rot_max_range = max(
+#     abs(scaled_rotation_residuals[:, 0]).max(),
+#     abs(scaled_rotation_residuals[:, 1]).max(),
+#     abs(scaled_rotation_residuals[:, 2]).max()
+# )
+# ax5.set_xlim(-rot_max_range, rot_max_range)
+# ax5.set_ylim(-rot_max_range, rot_max_range)
+# ax5.set_zlim(-rot_max_range, rot_max_range)
+
+# ax6.plot(np.linalg.norm(scaled_position_residuals,axis=1), color='r', label='Scaled Position Residuals')
+# ax6.plot(np.linalg.norm(scaled_rotation_residuals,axis=1), color='b', label='Scaled Rotation Residuals')
+# ax6.set_title('Magnitude of Scaled Residuals')
+# ax6.set_xlabel('Frame')
+# ax6.set_ylabel('Magnitude')
+# ax6.legend()
+
+# plt.show(block=False)
+
+# #Plot distributions of residuals x, y, z, rotx, roty, rotz
+# fig4, axs = plt.subplots(2, 3, figsize=(15, 10))
+# axs[0, 0].hist(position_residuals[:, 0], bins=50, color='r', alpha=0.7)
+# axs[0, 0].set_title('Position Residuals X')
+# axs[0, 1].hist(position_residuals[:, 1], bins=50, color='g', alpha=0.7)
+# axs[0, 1].set_title('Position Residuals Y')
+# axs[0, 2].hist(position_residuals[:, 2], bins=50, color='b', alpha=0.7)
+# axs[1, 0].hist(rotation_residuals[:, 0], bins=50, color='r', alpha=0.7)
+# axs[1, 0].set_title('Rotation Residuals X')
+# axs[1, 1].hist(rotation_residuals[:, 1], bins=50, color='g', alpha=0.7)
+# axs[1, 1].set_title('Rotation Residuals Y')
+# axs[1, 2].hist(rotation_residuals[:, 2], bins=50, color='b', alpha=0.7)
+# fig4.suptitle('Residuals Distributions')
+# plt.tight_layout()
+# plt.show()
