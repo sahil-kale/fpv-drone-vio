@@ -28,9 +28,9 @@ class VIOTranslator:
         rotation_matrix = euler_to_rotation_matrix(self.initial_state.get_state()[6:])
 
         # Rotate the relative translation into the world frame
-        rotated_translation = np.dot(rotation_matrix, translation_vector) #TODO: Check if this should be inverted
+        rotated_translation = rotation_matrix @ translation_vector #TODO: Check if this should be inverted
         
-        delta_state = np.concatenate((rotated_translation, rotation_vector, np.zeros(3)))
+        delta_state = np.concatenate((rotated_translation, np.zeros(6)))
         assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
         # Rotate the relative translation into the world frame
 
@@ -47,7 +47,7 @@ class VIOTranslator:
         return self.initial_state.get_state()
     
     def update_state_estimate(self, state: EKFDroneState):
-        self.initial_state.state = state.get_state()
+        self.initial_state = state
 
     # 1) after getting vision odom rel output, call integrate predicted state estimate
     # 2) Need to feed in vision abs odom to ekf class

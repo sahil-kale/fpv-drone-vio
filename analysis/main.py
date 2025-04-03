@@ -9,8 +9,8 @@ from util import conditional_breakpoint
 import computer_vision as mycv
 from vio_update_bridge import VIOTranslator
 import argparse
-import computer_vision as mycv
-from vio_update_bridge import VIOTranslator
+from madgwick import MadgwickFilter
+
 
 # Need to implement data ingestion and data processing here
 
@@ -34,7 +34,7 @@ def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFD
         position_vec = np.array([position[i][0], position[i][1], position[i][2]])
         quaternion_vec = np.array([orientation[i][0], orientation[i][1], orientation[i][2], orientation[i][3]])
         # Convert quaternion to Euler angles
-        euler_vec = quaternion_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
+        euler_vec = quaternion_xyzw_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
         velocity_vec = np.array([0,0,0])
         combined_state_vec = np.concatenate((position_vec, velocity_vec, euler_vec)).reshape(-1)
         # Create EKFDroneState object
@@ -109,9 +109,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
     parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
-    parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
-    parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
-    parser.add_argument('--use-vision-update', type=bool, default=True, help='Whether to use the VIO update')
+    parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
+    parser.add_argument('--end-stamp', type=int, default=2500, help='Number of samples to use for simulation')
 
     args = parser.parse_args()
 
@@ -168,12 +167,12 @@ if __name__ == '__main__':
     imu_timestamp = imu_timestamp[index_at_which_imu_data_is_synced:]
 
     NUM_FRAMES_TO_IGNORE = 500
-    NUM_FRAMES_TO_PLOT = 3000
+    END_STAMP = args.end_stamp
     gyro_bias = estimate_gyro_bias(imu_input_frames[0:NUM_FRAMES_TO_IGNORE])
 
-    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
-    imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
-    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:NUM_FRAMES_TO_PLOT]
+    imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:END_STAMP]
+    imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:END_STAMP]
+    gt_states = gt_states[NUM_FRAMES_TO_IGNORE:END_STAMP]
 
     index_at_which_vision_data_is_synced = 0
     for i, timestamp in enumerate(image_timestamps):
@@ -185,7 +184,8 @@ if __name__ == '__main__':
 
     # Pass into the EKF
     initial_state = gt_states[0].state
-
+    starting_quaternion_xyzw = gt_orientation[NUM_FRAMES_TO_IGNORE]
+    starting_quaternion = np.array([starting_quaternion_xyzw[3], starting_quaternion_xyzw[0], starting_quaternion_xyzw[1], starting_quaternion_xyzw[2]])
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
     process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
     measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
@@ -206,30 +206,38 @@ if __name__ == '__main__':
 
     current_image_index = 0 #variable to keep track of vision data index
 
+    madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.01)
+    MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 5
+    madgwick_filter.compute_optimal_mu(max_qdot=MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC, dt=dt) 
+
     for i, imu_input_frame in enumerate(imu_input_frames):
+        madgwick_filter.update(imu_input_frame, dt)
         if (args.use_gyro_ground_truth):
             # Use gyro ground truth data
             imu_input_frame.gyro_data = gt_states[i].state[6:9]
+        else:
+            imu_input_frame.gyro_data = madgwick_filter.get_euler_angles()
+
         ekf.predict(dt, imu_input_frame)
 
         #Integrate the vision data
 
-        if imu_timestamp[i] >= image_timestamps[current_image_index] and (args.use_vision_update):
+        if imu_timestamp[i] >= image_timestamps[current_image_index]:
             if current_image_index < len(vision_input_frames):
                 if current_image_index == 0:
                     # Use the first image to initialize the VIOTranslator
                     vio_translator = VIOTranslator(initial_state=ekf.get_state())
+                else:
+                    vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
+                    current_image_index += 1
+
+                    vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
                 
-                vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
-                current_image_index += 1
+                    #Update the EKF with the vision absolute odometry
+                    # abs_cv_state = vio_translator.get_current_state_vector()
+                    # absolute_translation_vector = abs_cv_state[:3]
 
-                vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
-            
-                #Update the EKF with the vision absolute odometry
-                # abs_cv_state = vio_translator.get_current_state_vector()
-                # absolute_translation_vector = abs_cv_state[:3]
-
-                # vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
+                    # vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
 
             # -- Update the EKF using the vision absolute odometry --
             ekf.update(vio_translator.get_current_state_vector())
@@ -240,14 +248,6 @@ if __name__ == '__main__':
 
 
         ekf_states.append(ekf.get_state())
-
-    ekf_orient_vector = []
-    gt_orient_vector = []
-
-    END_STAMP = args.end_stamp
-    ekf_states = ekf_states[0:END_STAMP]
-    gt_states = gt_states[0:END_STAMP]
-    imu_timestamp = imu_timestamp[0:END_STAMP]
 
     visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
     visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
