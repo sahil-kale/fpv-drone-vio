@@ -202,12 +202,12 @@ if __name__ == '__main__':
     #Initialize the computer vision relative odometry calculator
     vision_system = mycv.VisionRelativeOdometryCalculator(
         initial_camera_input= vision_input_frames[0],
-        feature_extractor= mycv.SIFTFeatureExtractor(),
-        feature_matcher= mycv.FLANNMatcher(),
-        feature_match_filter= mycv.RANSACFilter(),
-        alpha = 0.5
+        feature_extractor= mycv.SIFTFeatureExtractor(n_features=1000),
+        feature_matcher= mycv.FLANNMatcher(trees=5, checks=40),
+        feature_match_filter= mycv.RANSACFilter(min_matches=12, reproj_thresh=1.5),
+        alpha = 0.5,
+        transformation_threshold=0.05
     )
-
 
     current_image_index = 0 #variable to keep track of vision data index
 

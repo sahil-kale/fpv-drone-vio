@@ -50,7 +50,7 @@ class ORBFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.orb.detectAndCompute(image, None)
-        return keypoints, 
+        return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
 class SIFTFeatureExtractor(FeatureExtractor):
     """
@@ -74,7 +74,7 @@ class AKAZEFeatureExtractor(FeatureExtractor):
     
     def extract_features(self, image):
         keypoints, descriptors = self.akaze.detectAndCompute(image, None)
-        return keypoints, descriptors
+        return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
 #Match Features between Left and Right Images
 class FeatureMatcher(ABC):
@@ -103,7 +103,7 @@ class FLANNMatcher(FeatureMatcher):
     """
     Feature matcher using FLANN (Fast Library for Approximate Nearest Neighbors) algorithm
     """
-    def __init__(self):
+    def __init__(self, trees=10, checks=100):
         self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), dict(checks=60))
     
     def match_features(self, left_descriptors, right_descriptors):
@@ -632,7 +632,7 @@ def find_transformation(dst_points, src_points):
     return T
 
 #Iterative function for finding transformation robust to outliers
-def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=10, tol=1e-6):
+def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=5, tol=1e-6):
     """
     Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
 
@@ -656,7 +656,7 @@ def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_ite
 
         # Robust weighting using Huber loss
         delta = threshold  # Huber delta parameter
-        weights = np.where(distances <= delta, 1, delta / distances)
+        weights = np.where(distances <= delta, 1, delta / np.maximum(distances, 1e-8))
         weights /= np.sum(weights)  # Normalize
 
         # Compute weighted centroids
@@ -731,7 +731,7 @@ class VisionRelativeOdometryCalculator:
     * 
     """
     
-    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter, alpha=1):
+    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter, alpha=1, transformation_threshold=0.1):
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
         self.feature_match_filter = feature_match_filter
@@ -743,6 +743,7 @@ class VisionRelativeOdometryCalculator:
         self.alpha=alpha
         self.filtered_R = None
         self.filtered_t = None
+        self.transformation_threshold = transformation_threshold
     
     def update_current_feature_data(self, input:interface.VisionInputFrame):
         left_image, right_image = load_images(input)
@@ -805,7 +806,7 @@ class VisionRelativeOdometryCalculator:
                                         self.current_feature_data.right_keypoints)
         points2 = self.StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-        transformation = find_transformation_iterative(points1, points2)
+        transformation = find_transformation_iterative(points1, points2, threshold =self.transformation_threshold)
         if not(camera_frame):
             transformation = (
                 T_cam2drone @
