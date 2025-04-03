@@ -138,7 +138,7 @@ if __name__ == '__main__':
     imu_timestamp = df_imu[1]
     angular_velocity = df_imu.iloc[:, 2:5]
     acceleration = df_imu.iloc[:, 5:8]
-
+    
     # Convert into numpy arrays
     imu_timestamp = imu_timestamp.to_numpy()[1:].astype(float)
     acceleration = acceleration.to_numpy()[1:].astype(float)
@@ -156,6 +156,10 @@ if __name__ == '__main__':
     image_paths_right = df_img_paths_right.iloc[:, 2].tolist()[1:]
     vision_input_frames = develop_array_of_vision_input_frame(DATASET_DIR, image_timestamps, image_paths_left, image_paths_right)
     
+    # Small delay between imu timestamps and camera timestamps
+    IMU0_CAM_SYNC_OFFSET = 0.0166845720919
+    image_timestamps = image_timestamps + IMU0_CAM_SYNC_OFFSET
+
     # IMU and CAM data start recording earlier than GT data
     index_at_which_imu_data_is_synced = 0
     for i, timestamp in enumerate(imu_timestamp):
@@ -187,8 +191,8 @@ if __name__ == '__main__':
     starting_quaternion_xyzw = gt_orientation[NUM_FRAMES_TO_IGNORE]
     starting_quaternion = np.array([starting_quaternion_xyzw[3], starting_quaternion_xyzw[0], starting_quaternion_xyzw[1], starting_quaternion_xyzw[2]])
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
-    process_noise = np.array([0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1])
-    measurement_noise = np.array([0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
+    process_noise = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
+    measurement_noise = np.array([0.1, 0.1, 0.8, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
 
     NUM_STATES = 9
     dt = 0.002
@@ -200,7 +204,8 @@ if __name__ == '__main__':
         initial_camera_input= vision_input_frames[0],
         feature_extractor= mycv.SIFTFeatureExtractor(),
         feature_matcher= mycv.FLANNMatcher(),
-        feature_match_filter= mycv.RANSACFilter()
+        feature_match_filter= mycv.RANSACFilter(),
+        alpha = 0.5
     )
 
 
@@ -233,15 +238,9 @@ if __name__ == '__main__':
                     current_image_index += 1
 
                     vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
-                
-                    #Update the EKF with the vision absolute odometry
-                    # abs_cv_state = vio_translator.get_current_state_vector()
-                    # absolute_translation_vector = abs_cv_state[:3]
-
-                    # vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
 
                     # -- Update the EKF using the vision absolute odometry --
-                    ekf.update(np.concatenate((vio_translator.get_current_state_vector()[:3], ekf.get_state().state[3:])))
+                    ekf.update(vio_translator.get_current_state_vector())
 
                     # We only update this right after using the vision to update the ekf,
                     # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1

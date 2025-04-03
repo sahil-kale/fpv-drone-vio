@@ -27,7 +27,7 @@ class IMUKalmanFilter:
         
         self.K = np.eye(self.num_states)
         self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
-        self.C[2:5][:] = 0 #Remove Velocity Components from output vector   
+        self.C[6:][:] = 0 #Remove Velocity Components from output vector   
 
         self.A = np.eye(self.num_states)
         self.A[0, 3] = dt  # x += v_x * dt

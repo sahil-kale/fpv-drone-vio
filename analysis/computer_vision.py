@@ -719,6 +719,8 @@ class FeatureData:
         self.right_keypoints = right_keypoints
         self.right_descriptors = right_descriptors
 
+from scipy.spatial.transform import Rotation, Slerp
+
 class VisionRelativeOdometryCalculator:
     """
     Pass this a stream of VisionInputFrames and it will calculate the relative odometry between each pair of frames.
@@ -729,7 +731,7 @@ class VisionRelativeOdometryCalculator:
     * 
     """
     
-    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter):
+    def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter, alpha=1):
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
         self.feature_match_filter = feature_match_filter
@@ -738,6 +740,9 @@ class VisionRelativeOdometryCalculator:
         self.update_current_feature_data(initial_camera_input)
         self.previous_feature_data = self.current_feature_data
         self.StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
+        self.alpha=alpha
+        self.filtered_R = None
+        self.filtered_t = None
     
     def update_current_feature_data(self, input:interface.VisionInputFrame):
         left_image, right_image = load_images(input)
@@ -807,6 +812,28 @@ class VisionRelativeOdometryCalculator:
                 transformation @ 
                 np.linalg.inv(T_cam2drone)
             )
+
+        if self.alpha != 1:
+            # Apply exponential smoothing to the transformation matrix
+            R_new = transformation[:3, :3]
+            t_new = transformation[:3, 3]
+            if self.filtered_R is None:
+                self.filtered_R = R_new.copy()
+                self.filtered_t = t_new.copy()
+            else:
+                # Filter the translation
+                self.filtered_t = self.alpha * t_new + (1 - self.alpha) * self.filtered_t
+
+                # Filter the rotation using quaternions
+                key_times = [0, 1]
+                key_rotations = Rotation.from_matrix([self.filtered_R, R_new])
+                slerp = Slerp(key_times, key_rotations)
+                self.filtered_R = slerp(self.alpha).as_matrix()
+            
+            # Combine filtered rotation and translation into a transformation matrix
+            transformation = np.eye(4)
+            transformation[:3, :3] = self.filtered_R
+            transformation[:3, 3] = self.filtered_t
 
         self.previous_feature_data = self.current_feature_data
 

@@ -174,7 +174,7 @@ ground_truth_transformations = ground_truth_transformations[start_frame:]
 
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
-initial_frame = VisionInputFrame(left_images[0], right_images[0])
+initial_frame = VisionInputFrame(left_images[0], right_images[0], timestamp=image_timestamps[0])
 
 odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
                                               feature_extractor=mycv.SIFTFeatureExtractor(),
@@ -187,7 +187,7 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 maximum = len(ground_truth_transformations)
-limit = maximum 
+limit = 300
 alpha_t = 1
 alpha_R = 1
 filtered_R = np.eye(3)
@@ -198,7 +198,7 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images)):
         break
     print(i)
     
-    input_frame = VisionInputFrame(left_image, right_image)
+    input_frame = VisionInputFrame(left_image, right_image, timestamp=image_timestamps[i])
 
     # Calculate the relative odometry between the previous and new input frame
     relative_transformation = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
@@ -272,6 +272,10 @@ pos_mean_x = np.mean(position_residuals[:, 0])
 pos_mean_y = np.mean(position_residuals[:, 1])
 pos_mean_z = np.mean(position_residuals[:, 2])
 
+pos_var_x = np.var(position_residuals[:, 0])
+pos_var_y = np.var(position_residuals[:, 1])
+pos_var_z = np.var(position_residuals[:, 2])
+
 pos_rms_x = np.sqrt(np.mean(position_residuals[:, 0]**2))
 pos_rms_y = np.sqrt(np.mean(position_residuals[:, 1]**2))
 pos_rms_z = np.sqrt(np.mean(position_residuals[:, 2]**2))
@@ -281,6 +285,10 @@ rot_mean_x = np.mean(rotation_residuals[:, 0])
 rot_mean_y = np.mean(rotation_residuals[:, 1])
 rot_mean_z = np.mean(rotation_residuals[:, 2])
 
+rot_var_x = np.var(rotation_residuals[:, 0])
+rot_var_y = np.var(rotation_residuals[:, 1])
+rot_var_z = np.var(rotation_residuals[:, 2])
+
 rot_rms_x = np.sqrt(np.mean(rotation_residuals[:, 0]**2))
 rot_rms_y = np.sqrt(np.mean(rotation_residuals[:, 1]**2))
 rot_rms_z = np.sqrt(np.mean(rotation_residuals[:, 2]**2))
@@ -288,8 +296,11 @@ rot_rms_total = np.sqrt(np.mean(mag_rotation_residuals**2))
 
 print(f"Position Mean - X: {pos_mean_x:.4f}, Y: {pos_mean_y:.4f}, Z: {pos_mean_z:.4f}")
 print(f"Position RMS errors - X: {pos_rms_x:.4f}, Y: {pos_rms_y:.4f}, Z: {pos_rms_z:.4f}, Total: {pos_rms_total:.4f}\n")
+print(f"Position Variance - X: {pos_var_x:.4f}, Y: {pos_var_y:.4f}, Z: {pos_var_z:.4f}")
+
 print(f"Rotation Mean - X: {rot_mean_x:.4f}, Y: {rot_mean_y:.4f}, Z: {rot_mean_z:.4f}")
 print(f"Rotation RMS errors - X: {rot_rms_x:.4f}, Y: {rot_rms_y:.4f}, Z: {rot_rms_z:.4f}, Total: {rot_rms_total:.4f}")
+print(f"Rotation Variance - X: {rot_var_x:.4f}, Y: {rot_var_y:.4f}, Z: {rot_var_z:.4f}")
 
 fig2 = plt.figure(figsize=(10, 10))
 ax1 = fig2.add_subplot(2, 2, 1, projection='3d')
@@ -341,8 +352,12 @@ ax2.set_xlim(-rot_max_range, rot_max_range)
 ax2.set_ylim(-rot_max_range, rot_max_range)
 ax2.set_zlim(-rot_max_range, rot_max_range)
 
-ax3.plot(mag_position_residuals, color='r', label='Position Residuals')
-ax3.plot(mag_rotation_residuals, color='b', label='Rotation Residuals')
+ax3.plot(position_residuals[:, 0], color='r', label='Position Residuals X')
+ax3.plot(position_residuals[:, 1], color='g', label='Position Residuals Y')
+ax3.plot(position_residuals[:, 2], color='k', label='Position Residuals Z')
+ax3.plot(rotation_residuals[:, 0], color='magenta', label='Rotation Residuals X')
+ax3.plot(rotation_residuals[:, 1], color='cyan', label='Rotation Residuals Y')
+ax3.plot(rotation_residuals[:, 2], color='purple', label='Rotation Residuals Z')
 ax3.set_title('Magnitude of Residuals')
 ax3.set_xlabel('Frame')
 ax3.set_ylabel('Magnitude')
