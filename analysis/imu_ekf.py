@@ -85,8 +85,10 @@ class IMUKalmanFilter:
 
         self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
-    def update(self, camera_measurments: VisionAbsoluteOdometry):
-        measurement_vector = camera_measurments.get_measurement_vector().reshape(self.num_states, 1)
+    def update(self, camera_measurements: VisionAbsoluteOdometry):
+        cam_meas = camera_measurements.get_measurement_vector()
+        measurement_vector = np.concatenate((cam_meas, np.zeros(self.num_states - len(cam_meas))))
+        measurement_vector = measurement_vector.reshape(self.num_states, 1)
 
         self.K = self.P @ np.transpose(self.C) @ np.linalg.inv((self.C @ self.P @ np.transpose(self.C) + self.R))
         self.state = self.state + self.K * ( measurement_vector - self.C @ self.state) # Not sure how to get the real output, z

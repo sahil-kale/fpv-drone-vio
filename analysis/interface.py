@@ -108,3 +108,4 @@ class VisionAbsoluteOdometry:
     def get_measurement_vector(self) -> np.ndarray:
         measurement = np.concatenate((self.absolute_translation_vector, self.absolute_rotation_vector))
         assert measurement.shape == (6,), "Measurement vector must be of shape (6,)"
+        return measurement
