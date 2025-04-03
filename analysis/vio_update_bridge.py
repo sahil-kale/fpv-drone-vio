@@ -25,12 +25,12 @@ class VIOTranslator:
         translation_vector = vision_relative_odometery.get_relative_translation_vector() 
         rotation_vector = vision_relative_odometery.get_relative_rotation_vector() # theta x, theta y, theta z
 
-        rotation_matrix = euler_to_rotation_matrix(rotation_vector)
+        rotation_matrix = euler_to_rotation_matrix(self.initial_state.get_state()[3:6])
 
         # Rotate the relative translation into the world frame
         rotated_translation = np.dot(rotation_matrix, translation_vector) #TODO: Check if this should be inverted
         
-        delta_state = np.concatenate((rotated_translation, rotation_vector, np.zeros(3,)))
+        delta_state = np.concatenate((rotated_translation, rotation_vector, np.zeros(3)))
         assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
         # Rotate the relative translation into the world frame
 

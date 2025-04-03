@@ -111,6 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
     parser.add_argument('--steps', type=int, default=10, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=1000, help='Number of samples to use for simulation')
+    parser.add_argument('--use_vision_update', type=bool, default=True, help='Whether to use the VIO update')
 
     args = parser.parse_args()
 
@@ -201,10 +202,9 @@ if __name__ == '__main__':
         feature_matcher= mycv.FLANNMatcher(),
         feature_match_filter= mycv.RANSACFilter()
     )
-    #VIOTranslator object to integrate the vision data
-    vio_translator = VIOTranslator(initial_state=gt_states[0])
 
-    current_image_index = 1 #variable to keep track of vision data index
+
+    current_image_index = 0 #variable to keep track of vision data index
 
     for i, imu_input_frame in enumerate(imu_input_frames):
         if (args.use_gyro_ground_truth):
@@ -213,21 +213,26 @@ if __name__ == '__main__':
         ekf.predict(dt, imu_input_frame)
 
         #Integrate the vision data
-        if imu_timestamp[i] >= image_timestamps[current_image_index]:
+
+        if imu_timestamp[i] >= image_timestamps[current_image_index] and (args.use_vision_update):
             if current_image_index < len(vision_input_frames):
+                if current_image_index == 0:
+                    # Use the first image to initialize the VIOTranslator
+                    vio_translator = VIOTranslator(initial_state=ekf.get_state())
+                
                 vision_relative_odometry = vision_system.calculate_relative_odometry(vision_input_frames[current_image_index])
                 current_image_index += 1
 
                 vio_translator.integrate_predicted_state_estimate(vision_relative_odometry)
             
                 #Update the EKF with the vision absolute odometry
-                abs_cv_state = vio_translator.get_current_state_vector()
-                absolute_translation_vector = abs_cv_state[:3]
+                # abs_cv_state = vio_translator.get_current_state_vector()
+                # absolute_translation_vector = abs_cv_state[:3]
 
-                vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
+                # vision_absolute_odometry = VisionAbsoluteOdometry(absolute_translation_vector, np.zeros((3,)))
 
             # -- Update the EKF using the vision absolute odometry --
-            ekf.update(vision_absolute_odometry)
+            ekf.update(vio_translator.get_current_state_vector())
 
             # We only update this right after using the vision to update the ekf,
             # because the relative transformation is between camera frame k, k-1 not imu frame n, n-1
