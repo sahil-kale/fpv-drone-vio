@@ -16,24 +16,23 @@ GRAVITY_M_PER_S_SQUARED = 9.81
 #   [x_w, y_w, z_w, t_w_x, t_w_y, t_w_z]^T
 
 class IMUKalmanFilter:
-    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states, gyro_bias: np.ndarray):
+    def __init__(self, dt, initial_state, initial_covariance: np.ndarray, process_noise: np.ndarray, measurement_noise: np.ndarray, num_states, num_outputs, gyro_bias: np.ndarray):
         self.dt = dt
         self.state = initial_state
 
         self.num_states = num_states
+        self.num_outputs = num_outputs
         self.P = np.eye(self.num_states) * initial_covariance
         self.Q = np.eye(self.num_states) * process_noise
-        self.R = np.eye(self.num_states) * measurement_noise
+        self.R = np.eye(self.num_outputs) * measurement_noise
         
         self.K = np.eye(self.num_states)
-        self.C = np.eye(self.num_states) #Measurement Model, or H Matrix
-        self.C[6:][:] = 0 #Remove Velocity Components from output vector   
+        self.C = np.eye(3,self.num_states) # Measurement Model, or H Matrix
 
         self.A = np.eye(self.num_states)
         self.A[0, 3] = dt  # x += v_x * dt
         self.A[1, 4] = dt
         self.A[2, 5] = dt
-        self.max_error = 0
 
         self.gravity = np.array([0, 0, -GRAVITY_M_PER_S_SQUARED]).reshape(3, 1)
 
@@ -42,35 +41,29 @@ class IMUKalmanFilter:
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data
-        ang_vel = imu_input_frame.get_gyro_data()
+        world_pose = imu_input_frame.get_gyro_data()
         lin_acc = imu_input_frame.get_accel_data()
         
         # Update dt
         self.dt = dt
 
         # Extract state variables
-        x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
+        x, y, z, v_x, v_y, v_z = self.state
 
-        gyro_x = ang_vel[0] - self.gyro_bias[0]
-        gyro_y = ang_vel[1] - self.gyro_bias[1]
-        gyro_z = ang_vel[2] - self.gyro_bias[2]
+        
+        t_x = world_pose[0] # Gyro data
+        t_y = world_pose[1]
+        t_z = world_pose[2]
+
 
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
 
-        t_x = gyro_x 
-        t_y = gyro_y
-        t_z = gyro_z
-        
-
-
         # Transfer the acceleration vector to the world frame
         world_to_drone_rotation = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item())
-        drone_to_world_rotation = world_to_drone_rotation.T
 
         world_accel = (world_to_drone_rotation @ np.array([acc_x,acc_y,acc_z]).reshape(3,1)) + self.gravity
-
 
         # Integrate the acceleration vector to get the new position
         x = x +  v_x*dt  
@@ -81,7 +74,7 @@ class IMUKalmanFilter:
         v_y = v_y + world_accel[1]*dt
         v_z = v_z + world_accel[2]*dt
         
-        self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item(), t_x.item(), t_y.item(), t_z.item()]).reshape(self.num_states, 1)
+        self.state = np.array([x.item(), y.item(), z.item(), v_x.item(), v_y.item(), v_z.item()]).reshape(self.num_states, 1)
 
         self.P = self.A @ self.P @ np.transpose(self.A) + self.Q
     
