@@ -1,5 +1,5 @@
 import numpy as np
-
+from converting_quaternion import quaternion_xyzw_to_euler
 class EKFDroneState:
     def __init__(self, initial_state: np.ndarray):
         self.state = initial_state
@@ -105,3 +105,20 @@ class VisionAbsoluteOdometry:
     def get_measurement_vector(self) -> np.ndarray:
         measurement = np.concatenate((self.absolute_translation_vector, self.absolute_rotation_vector))
         assert measurement.shape == (6,), "Measurement vector must be of shape (6,)"
+
+class OrientationState:
+    def __init__(self, qw, qx, qy, qz):
+        self.qw = qw
+        self.qx = qx
+        self.qy = qy
+        self.qz = qz
+    
+    def get_quaternion(self) -> np.ndarray:
+        return np.array([self.qw, self.qx, self.qy, self.qz])
+    
+    def get_quaternion_as_euler(self):
+        # Convert quaternion to euler angles
+        q = self.get_quaternion()
+        qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+        return quaternion_xyzw_to_euler(qx, qy, qz, qw)
+        

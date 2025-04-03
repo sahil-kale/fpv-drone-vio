@@ -1,13 +1,14 @@
 import pandas as pd
 import numpy as np
 import os
-from interface import IMUInputFrame, VisionInputFrame, VisionRelativeOdometry, VisionAbsoluteOdometry, EKFDroneState
+from interface import *
 from imu_ekf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
 import argparse
 from madgwick import MadgwickFilter
+from visualizer_orientation import VisualizerOrientationOnly
 
 # Need to implement data ingestion and data processing here
 
@@ -27,17 +28,21 @@ def develop_array_of_imu_input_frame(timestamp, acceleration, angular_velocity):
 def develop_array_of_ground_truth(timestamp, position, orientation) -> list[EKFDroneState]:
     # Create an array of EKFDroneState objects
     gt_states = []
+    orientation_states = [] 
     for i in range(len(timestamp)):
         position_vec = np.array([position[i][0], position[i][1], position[i][2]])
-        quaternion_vec = np.array([orientation[i][0], orientation[i][1], orientation[i][2], orientation[i][3]])
+        quaternion_vec = np.array([orientation[i][0], orientation[i][1], orientation[i][2], orientation[i][3]]).reshape(-1)
+        qx, qy, qz, qw = quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3]
+        orientation_state = OrientationState(qw, qx, qy, qz)
+        orientation_states.append(orientation_state)
         # Convert quaternion to Euler angles
-        euler_vec = quaternion_xyzw_to_euler(quaternion_vec[0], quaternion_vec[1], quaternion_vec[2], quaternion_vec[3])
+        euler_vec = orientation_state.get_quaternion_as_euler()
         velocity_vec = np.array([0,0,0])
         combined_state_vec = np.concatenate((position_vec, velocity_vec, euler_vec)).reshape(-1)
         # Create EKFDroneState object
         gt_states.append(EKFDroneState(combined_state_vec))
 
-    return gt_states
+    return gt_states, orientation_states
 
 def develop_array_of_vision_input_frame(dataset_dir, timestamp, image_path_left, image_path_right):
     # Create an array of VisionInputFrame objects
@@ -64,6 +69,11 @@ if __name__ == '__main__':
     parser.add_argument('--use-accel-ground-truth', action='store_true', default=False, help='Whether accelerometer ground truth should be used')
     parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=2500, help='Number of samples to use for simulation')
+    VISUALIZER_TYPES = [
+        "all",
+        "orientation"
+    ]
+    parser.add_argument('--visualizer-type', type=str, default="all", choices=VISUALIZER_TYPES, help='Type of visualizer to use')
 
     args = parser.parse_args()
 
@@ -82,7 +92,7 @@ if __name__ == '__main__':
     gt_orientation = gt_orientation.to_numpy()[1:].astype(float)
 
     # Convert into array of EKFDroneState objects
-    gt_states = develop_array_of_ground_truth(gt_timestamp, gt_position, gt_orientation)
+    gt_states, gt_orientation_states = develop_array_of_ground_truth(gt_timestamp, gt_position, gt_orientation)
 
     imu_path = DATASET_DIR + 'imu.txt'
     df_imu = load_data(imu_path)
@@ -125,6 +135,7 @@ if __name__ == '__main__':
     imu_input_frames = imu_input_frames[NUM_FRAMES_TO_IGNORE:END_STAMP]
     imu_timestamp = imu_timestamp[NUM_FRAMES_TO_IGNORE:END_STAMP]
     gt_states = gt_states[NUM_FRAMES_TO_IGNORE:END_STAMP]
+    gt_orientation_states = gt_orientation_states[NUM_FRAMES_TO_IGNORE:END_STAMP]
 
     index_at_which_vision_data_is_synced = 0
     for i, timestamp in enumerate(image_timestamps):
@@ -146,6 +157,7 @@ if __name__ == '__main__':
     dt = 0.002
     ekf = IMUKalmanFilter(dt, initial_state, initial_covariance, process_noise, measurement_noise, NUM_STATES, gyro_bias)
     ekf_states = []
+    madgwick_states = []
 
     madgwick_filter = MadgwickFilter(initial_quaternion=starting_quaternion, gyro_bias=gyro_bias, mu=0.01)
     MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 5
@@ -158,9 +170,16 @@ if __name__ == '__main__':
             imu_input_frame.gyro_data = gt_states[i].state[6:9]
         else:
             imu_input_frame.gyro_data = madgwick_filter.get_euler_angles()
+            orientation_quaternion = madgwick_filter.get_quaternion()
+            orientation_state = OrientationState(orientation_quaternion[0], orientation_quaternion[1], orientation_quaternion[2], orientation_quaternion[3])
+            madgwick_states.append(orientation_state)
 
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
 
-    visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
-    visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
+    if args.visualizer_type == "all":
+        visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
+        visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
+    elif args.visualizer_type == "orientation":
+        visualier = VisualizerOrientationOnly(gt_orientation_states, madgwick_states, dt)
+        visualier.plot_and_compute_stats()

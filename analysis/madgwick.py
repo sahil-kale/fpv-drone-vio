@@ -75,7 +75,7 @@ class MadgwickFilter:
         return self.q
 
     def get_quaternion(self):
-        return self.q
+        return self.q.reshape(-1)
     
     def get_euler_angles(self):
         qw, qx, qy, qz = self.q.reshape(-1)
