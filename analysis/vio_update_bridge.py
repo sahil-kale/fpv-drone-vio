@@ -30,7 +30,7 @@ class VIOTranslator:
         # Rotate the relative translation into the world frame
         rotated_translation = np.dot(rotation_matrix, translation_vector) #TODO: Check if this should be inverted
         
-        delta_state = np.concatenate(rotated_translation, rotation_vector)
+        delta_state = np.concatenate((rotated_translation, rotation_vector))
         assert delta_state.shape == (6,), "State vector must be of shape (6,)"
         # Rotate the relative translation into the world frame
 

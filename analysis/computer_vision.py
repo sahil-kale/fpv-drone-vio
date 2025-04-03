@@ -816,7 +816,7 @@ class VisionRelativeOdometryCalculator:
         if camera_frame:
             homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=True)
         else:
-            homo_transformation = self.calculate_relative_odometry(input_frame, camera_frame=False)
+            homo_transformation = self.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
         return interface.create_VisionRelativeOdometry_from_homogeneous_matrix(homo_transformation)
 
     def plot_point_clouds(self, points1_world, points2_world):

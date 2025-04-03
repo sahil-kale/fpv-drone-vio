@@ -199,7 +199,7 @@ if __name__ == '__main__':
         initial_camera_input= vision_input_frames[0],
         feature_extractor= mycv.SIFTFeatureExtractor(),
         feature_matcher= mycv.FLANNMatcher(),
-        feature_match_filter= mycv.RANSACFeatureMatchFilter()
+        feature_match_filter= mycv.RANSACFilter()
     )
     #VIOTranslator object to integrate the vision data
     vio_translator = VIOTranslator(initial_state=gt_states[0])
