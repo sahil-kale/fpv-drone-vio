@@ -75,6 +75,7 @@ if __name__ == '__main__':
         "orientation"
     ]
     parser.add_argument('--visualizer-type', type=str, default="all", choices=VISUALIZER_TYPES, help='Type of visualizer to use')
+    parser.add_argument('--save-visualizer', action='store_true', default=False, help='Whether to save the visualizer output')
 
     args = parser.parse_args()
 
@@ -235,7 +236,7 @@ if __name__ == '__main__':
     print("RMS Position Error (m): ", rms_position_error)
 
     if args.visualizer_type == "all":
-        visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
+        visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps, save=args.save_visualizer)
         visualizer.plot_3d_trajectory_animation(plot_ground_truth=True)
     elif args.visualizer_type == "orientation":
         visualier = VisualizerOrientationOnly(gt_orientation_states, madgwick_states, dt)

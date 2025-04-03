@@ -7,7 +7,7 @@ from interface import VisionInputFrame, EKFDroneState
 
 
 class Visualizer:
-    def __init__(self, states, ground_truth, state_timeseries, vision_input_frames, vision_state_timeseries, downsample=False, step=15):
+    def __init__(self, states, ground_truth, state_timeseries, vision_input_frames, vision_state_timeseries, downsample=False, step=15, save=False):
         if downsample:
             self.states = states[::step]
             self.ground_truth = ground_truth[::step]
@@ -20,6 +20,7 @@ class Visualizer:
         self.vision_input_frames = vision_input_frames
         self.vision_state_timeseries = vision_state_timeseries
         self.vision_timeseries_index = 0
+        self.save = save
 
     def plot_3d_coordinate_axes(self, ax, state: EKFDroneState, color_strs=['r', 'g', 'b']):
         origin = state.get_world_position()
@@ -121,5 +122,7 @@ class Visualizer:
             return est_quiver_artists + gt_quiver_artists + [left_image_display, right_image_display]
 
         ani = animation.FuncAnimation(fig, update, frames=len(self.states), interval=60, blit=False)
+        if self.save:
+            ani.save('drone_trajectory_animation.mp4', writer='ffmpeg', fps=30)
         plt.tight_layout()
         plt.show()

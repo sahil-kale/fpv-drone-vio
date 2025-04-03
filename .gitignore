@@ -180,5 +180,7 @@ build/
 logs/
 *Zone.Identifier
 .idea/
+*.mp4
+*.gif
 
 __pycache__/*
