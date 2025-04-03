@@ -163,6 +163,9 @@ if __name__ == '__main__':
     MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC = 5
     madgwick_filter.compute_optimal_mu(max_qdot=MADGWICK_FILTER_MAX_ROTATION_RATE_RAD_PER_SEC, dt=dt) 
 
+    rms_position_error = [0, 0, 0]
+    len_input_frames = len(imu_input_frames)
+
     for i, imu_input_frame in enumerate(imu_input_frames):
         madgwick_filter.update(imu_input_frame, dt)
         if (args.use_gyro_ground_truth):
@@ -176,6 +179,15 @@ if __name__ == '__main__':
 
         ekf.predict(dt, imu_input_frame)
         ekf_states.append(ekf.get_state())
+
+        for i in range(len(rms_position_error)):
+            rms_position_error[i] += (ekf.get_state().get_world_position()[i] - gt_states[i].get_world_position()[i])**2
+
+    
+    for i in range(len(rms_position_error)):
+        rms_position_error[i] = np.sqrt(rms_position_error[i] / len_input_frames)
+    
+    print("RMS Position Error (m): ", rms_position_error)
 
     if args.visualizer_type == "all":
         visualizer = Visualizer(ekf_states, gt_states, imu_timestamp, vision_input_frames, image_timestamps, downsample=True, step=args.steps)
