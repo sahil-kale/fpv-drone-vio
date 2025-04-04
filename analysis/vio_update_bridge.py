@@ -33,7 +33,8 @@ class VIOTranslator:
         # assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
         # Rotate the relative translation into the world frame
 
-        self.initial_state.state[:3] += rotated_translation
+        self.initial_state.state[:2] += rotated_translation[:2]
+        self.initial_state.state[2] += rotated_translation[2]*0.3
         assert self.initial_state.state.shape == (9,), "State vector must be of shape (9,)"
 
     def get_prev_state_rotation_matrix(self):

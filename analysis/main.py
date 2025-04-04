@@ -158,7 +158,7 @@ if __name__ == '__main__':
     starting_quaternion = np.array([starting_quaternion_xyzw[3], starting_quaternion_xyzw[0], starting_quaternion_xyzw[1], starting_quaternion_xyzw[2]])
     initial_covariance = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
     process_noise = np.array([0.1, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1])
-    measurement_noise = np.array([0.1, 0.1, 0.8, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
+    measurement_noise = np.array([0.1, 0.1, 40, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1])
 
     NUM_STATES = 9
     dt = 0.002

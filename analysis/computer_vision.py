@@ -282,8 +282,8 @@ class StereoProjection:
         :param use_normalized_projection: If True, use identity intrinsic matrix in projection.
         :return: Nx3 array of triangulated 3D points in the left camera frame.
         """
-        points_left = self.undistort_points(points_left, camera="left")
-        points_right = self.undistort_points(points_right, camera="right")
+        # points_left = self.undistort_points(points_left, camera="left")
+        # points_right = self.undistort_points(points_right, camera="right")
 
         points_left = np.array(points_left, dtype=np.float32)
         points_right = np.array(points_right, dtype=np.float32)
@@ -737,9 +737,9 @@ class VisionRelativeOdometryCalculator:
         self.feature_match_filter = feature_match_filter
         self.current_feature_data = None
         self.previous_feature_data = None
+        self.StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
         self.update_current_feature_data(initial_camera_input)
         self.previous_feature_data = self.current_feature_data
-        self.StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
         self.alpha=alpha
         self.filtered_R = None
         self.filtered_t = None
@@ -753,6 +753,23 @@ class VisionRelativeOdometryCalculator:
         right_keypoints, right_descriptors = self.feature_extractor.extract_features(right_preprocessed)
 
         matches = self.feature_matcher.match_features(left_descriptors, right_descriptors)
+
+        #Undistort the keypoints before filtering
+        # Extract points from keypoints for undistortion
+        left_points = np.array([kp.pt for kp in left_keypoints], dtype=np.float32)
+        right_points = np.array([kp.pt for kp in right_keypoints], dtype=np.float32)
+        
+        # Undistort the points
+        left_points_undistorted = self.StereoPair.undistort_points(left_points, camera="left")
+        right_points_undistorted = self.StereoPair.undistort_points(right_points, camera="right")
+        
+        # Create new keypoints with undistorted coordinates
+        for i, kp in enumerate(left_keypoints):
+            kp.pt = (left_points_undistorted[i][0], left_points_undistorted[i][1])
+            
+        for i, kp in enumerate(right_keypoints):
+            kp.pt = (right_points_undistorted[i][0], right_points_undistorted[i][1])
+
         filtered_matches = self.feature_match_filter.filter_matches(matches, left_keypoints, right_keypoints)
 
         self.current_feature_data = FeatureData(filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors)
