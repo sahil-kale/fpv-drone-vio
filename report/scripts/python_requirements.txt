@@ -1,0 +1,7 @@
+black
+matplotlib
+click
+numpy
+cairosvg
+pillow
+control

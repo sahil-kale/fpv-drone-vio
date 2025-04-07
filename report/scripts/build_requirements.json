@@ -1,0 +1,16 @@
+{
+    "apt": [
+        "git",
+        "cmake",
+        "clang-format",
+        "texlive",
+        "latexmk",
+        "texlive-latex-extra",
+        "texlive-fonts-recommended",
+        "build-essential",
+        "texlive-fonts-extra",
+        "texlive-bibtex-extra",
+        "biber",
+        "python3-tk"
+    ]
+}
