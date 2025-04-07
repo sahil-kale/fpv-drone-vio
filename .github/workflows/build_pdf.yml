@@ -1,0 +1,34 @@
+name: Build LaTeX PDF
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout the repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Python
+    - name: Set up Python 3.x
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Run setup script
+      run: |
+        cd report
+        python3 scripts/setup.py --skip-upgrade
+
+    - name: Build the PDF
+      run: |
+        cd report
+        python3 scripts/build_pdf.py
