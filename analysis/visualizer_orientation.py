@@ -14,24 +14,28 @@ class VisualizerOrientationOnly:
 
     def plot_and_compute_stats(self):
         num_samples = self.min_len
-        gt_euler = np.zeros((num_samples, 3))
-        est_euler = np.zeros((num_samples, 3))
+        errors = np.zeros((num_samples, 3))
+        gt_eulers = np.zeros((num_samples, 3))
+        est_eulers = np.zeros((num_samples, 3))
         for i in range(num_samples):
-            gt_euler[i] = self.gt_orientation_list[i].get_quaternion_as_euler()
-            est_euler[i] = self.est_orientation_list[i].get_quaternion_as_euler()
+            gt_euler = self.gt_orientation_list[i].get_quaternion_as_euler()
+            est_euler = self.est_orientation_list[i].get_quaternion_as_euler()
+            x_error_wrapped = np.arctan2(np.sin(est_euler[0] - gt_euler[0]), np.cos(est_euler[0] - gt_euler[0]))
+            y_error_wrapped = np.arctan2(np.sin(est_euler[1] - gt_euler[1]), np.cos(est_euler[1] - gt_euler[1]))
+            z_error_wrapped = np.arctan2(np.sin(est_euler[2] - gt_euler[2]), np.cos(est_euler[2] - gt_euler[2]))
+            errors[i, :] = np.array([x_error_wrapped, y_error_wrapped, z_error_wrapped])
+            gt_eulers[i] = gt_euler
+            est_eulers[i] = est_euler
 
-        # Compute RMSE
-        errors = est_euler - gt_euler
         rmse = np.sqrt(np.mean(errors**2, axis=0))
-
         # Plotting
         time = np.arange(num_samples) * self.dt
 
         fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         labels = ['Roll', 'Pitch', 'Yaw']
         for i in range(3):
-            axes[i].plot(time, gt_euler[:, i], label='Ground Truth', linestyle='--')
-            axes[i].plot(time, est_euler[:, i], label='Estimate')
+            axes[i].plot(time, gt_eulers[:, i], label='Ground Truth', linestyle='--')
+            axes[i].plot(time, est_eulers[:, i], label='Estimate')
             axes[i].set_ylabel(f'{labels[i]} (rad)')
             axes[i].legend()
             axes[i].grid(True)
