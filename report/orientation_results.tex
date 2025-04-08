@@ -1,0 +1,14 @@
+\documentclass[bare_jrnl_transmag]{subfiles}
+\begin{document}
+\subsection{Drone Pose Estimation}
+The drone pose estimation from the IMU is required to be accurate for the purposes of the VIO algorithm. Evaluation of the Madgwick filter was performed by comparing the ground-truth pose of the drone to the pose estimated by the Madgwick filter. The results of the evaluation are shown in Figure \ref{fig:madgwick_results}. The results show that the Madgwick filter is able to estimate the pose of the drone with a high degree of accuracy (RSME: XXX rad) in real-time, making it suitable for use in the VIO algorithm.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/madgwick_results.png}
+    \caption{Madgwick filter results. The blue line is the ground-truth pose of the drone, while the orange line is the pose estimated by the Madgwick filter.}
+    \label{fig:madgwick_results}
+\end{figure}
+
+
+\end{document}

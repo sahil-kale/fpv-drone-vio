@@ -1,7 +1,6 @@
 \documentclass[bare_jrnl_transmag]{subfiles}
 \begin{document}
-\section{Orientation Filter Implementation}
-\subsection{Madgwick Filter Theory}
+\subsection{Orientation Filter Implementation}
 The Madgwick filter is an orientation filter that uses quaternions to describe the orientation from a fixed body frame to a moving inertial frame \cite{ahrs_madgwick}. As a result of the algorithms using quaternions, it does not suffer from the problems presented orientation representation as Euler angles, such as gimbal lock. The equations of the filter (taken from \cite{ahrs_madgwick}) are restated below:
 
 \subsubsection{Gyroscopic Integration Step}
