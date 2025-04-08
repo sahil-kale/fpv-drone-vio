@@ -343,6 +343,9 @@
 % correct bad hyphenation here
 \hyphenation{op-tical net-works semi-conduc-tor}
 \usepackage[backend=biber,style=ieee]{biblatex}
+\usepackage{graphicx}
+\usepackage{float}
+
 
 \bibliography{references}
 
@@ -433,8 +436,11 @@ The abstract goes here.
 % creates the second title. It will be ignored for other modes.
 \IEEEpeerreviewmaketitle
 
-\newpage
+% METHODS AND MATERIALS
+\section{Methods and Materials}
 \subfile{madgwick}
+\section{Results and Key Findings}
+\subfile{orientation_results}
 
 
 \section{Introduction}

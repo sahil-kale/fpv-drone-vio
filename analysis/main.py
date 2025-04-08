@@ -76,13 +76,14 @@ if __name__ == '__main__':
     ]
     parser.add_argument('--visualizer-type', type=str, default="all", choices=VISUALIZER_TYPES, help='Type of visualizer to use')
     parser.add_argument('--save-visualizer', action='store_true', default=False, help='Whether to save the visualizer output')
+    parser.add_argument('--dataset-path', type=str, default="dataset/vio_dataset_1/", help='Path to the dataset directory')
 
     args = parser.parse_args()
 
 
-    DATASET_DIR = os.getcwd() + '/dataset/vio_dataset_1/'
+    DATASET_DIR = os.getcwd() + f'/{args.dataset_path}'
 
-    df_ground_truth = pd.read_csv(os.getcwd() + '/dataset/vio_dataset_1/groundtruth.txt', sep=' ', header=None)
+    df_ground_truth = pd.read_csv(DATASET_DIR + 'groundtruth.txt', sep=' ', header=None)
     # Extract into arrays for timestamp (column 1), position (columns 2-4), and orientation quaternion (columns 5-8)
     gt_timestamp = df_ground_truth[0]
     gt_position = df_ground_truth.iloc[:, 1:4]
