@@ -205,7 +205,7 @@ if __name__ == '__main__':
 
         #Integrate the vision data
 
-        if imu_timestamp[i] >= image_timestamps[current_image_index]:
+        if (imu_timestamp[i] >= image_timestamps[current_image_index]) and (args.visualizer_type != "orientation"):
             if current_image_index < len(vision_input_frames):
                 if current_image_index == 0:
                     # Use the first image to initialize the VIOTranslator
