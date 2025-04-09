@@ -1,0 +1,47 @@
+\documentclass[bare_jrnl_transmag]{subfiles}
+\begin{document}
+\subsection{Kalman Filter Theory}
+A Kalman Filter is a type of algorithm which predicts the states of a system using their dynamics, and correcting the prediction with feedback from an external sensor. The filter is used to fuse the data coming from the IMU and the data from the camera. 
+In the case of the project, the Kalman filter was used to predict the position of the drone relative to the world frame. The states of the Kalman Filter were thus 
+
+\begin{equation}[ t_x, t_y, t_z, v_x, v_y, v_z ]  \end{equation}  which represent the translation and velocity of the drone in world frame. 
+The inputs of the system will be the IMU acceleration data and the camera distance output, while the output of the system will be the updated position of the drone.
+
+I SHOUDL TALK ABOUT THE P, Q and R Matrix
+
+\subsubsection{Predict}
+The predict stage of the Kalman Filter is responsible for taking in the system inputs and determining the new states based on the dynamics of the system. In the case of the drone, the assumption of linear displacement was made due to the quick sampling time of the IMU. The dyanmics of the drone flight is based on linear motion laws. Since the input of the predict step is the acceleration of the drone in the drone frame, a couple modifications must be made to the data. Firstly, the linear acceleration must be integrated to get distance. The data is presented in a time series format, which means that a discritezed integration is required. For this system, instead of directly integrating the acceleration for displacement, the previous velocity is integrated to determine the change in distance and then the new acceleration is integrated to determine the new velocity. Since the time steps are so small, it can be assumed that the velocity will not change largely between the time steps. 
+Before processing the acceleration in world frame, the acceleration from the IMU (in IMU/Drone frame) needs to be rotated towards the current pose. An assumption that the pose does not change much during the time step is made to remove the circular dependancy. To convert the acceleration from drone frame to world frame, the pose from the madwick filter is fed into a combined rotation matrix. This matrix is applied to the acceleration to get the accleration in the world xyz frame.
+
+Once the world frame acceleration is calculated, the position and velocity states of drone can be computed.
+
+The equations look as follows:
+\begin{align*}
+    \text{Input Data:} \quad & [a_x, a_y, a_z] \\[1ex]
+    
+    \text{Displacement:} \quad \\ \\
+    t_x[k] &= t_x[k-1] + v_x[k-1] \cdot \Delta t \\
+    t_y[k] &= t_y[k-1] + v_y[k-1] \cdot \Delta t \\
+    t_z[k] &= t_z[k-1] + v_z[k-1] \cdot \Delta t \\
+    
+    
+    \text{Velocity:} \quad \\ \\
+    v_x[k] &= v_x[k-1] + a_x \cdot \Delta t \\
+    v_y[k] &= v_y[k-1] + a_y \cdot \Delta t \\
+    v_z[k] &= v_z[k-1] + a_z \cdot \Delta t
+\end{align*}
+
+I SHOULD PROLLY TALK ABOUT THE A,B,C,D MATRIX ALSO UPDATING P Matrix
+
+    
+\subsubsection{Update}
+The Update phase of the Kalman Filter is where the sensor fusion occurs. In essence, the predicted state is compared to another state (i.e. the camera output) to fuse the data together. 
+The Kalman Gain, or K Matrix, determines the weight of the predicted state vs the model state. It is calculated using the error covariance matrix, the measurement noise matrix and the output state matrix. 
+At each update step, the matrix is updated for the new gain, essentially recording which state should be trusted more, model or actual.
+
+The states are then updated using the Kalman Gain and the outputs of the camera and prediction.
+
+Finally the Error Covariance Matrix is updated.
+
+SHOW ACTUAL MATRIX MATH, 
+\end{document}
