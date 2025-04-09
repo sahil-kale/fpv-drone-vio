@@ -360,7 +360,7 @@
 % not capitalized unless they are the first or last word of the title.
 % Linebreaks \\ can be used within to get better formatting as desired.
 % Do not put math or special symbols in the title.
-\title{Bare Demo of IEEEtran.cls for\\ IEEE \textsc{Transactions on Magnetics}}
+\title{Visual-Inertial Odometry Algorithm for GPS-denied Localization of an FPV Drone}
 
 
 
@@ -370,38 +370,9 @@
 \author{\IEEEauthorblockN{Sahil Kale, Dhruv Upadhayay, Akshat Doctor, Owen Weiss, Aaron Spoelstra}
 \IEEEauthorblockA{University of Waterloo, Waterloo, Ontario, Canada\\}}
 
-% The only time the second header will appear is for the odd numbered pages
-% after the title page when using the twoside option.
-% 
-% *** Note that you probably will NOT want to include the author's ***
-% *** name in the headers of peer review papers.                   ***
-% You can use \ifCLASSOPTIONpeerreview for conditional compilation here if
-% you desire.
-
-
-
-
-% If you want to put a publisher's ID mark on the page you can do it like
-% this:
-%\IEEEpubid{0000--0000/00\$00.00~\copyright~2015 IEEE}
-% Remember, if you use this you must call \IEEEpubidadjcol in the second
-% column for its text to clear the IEEEpubid mark.
-
-
-
-% use for special paper notices
-%\IEEEspecialpapernotice{(Invited Paper)}
-
-
-% for Transactions on Magnetics papers, we must declare the abstract and
-% index terms PRIOR to the title within the \IEEEtitleabstractindextext
-% IEEEtran command as these need to go into the title area created by
-% \maketitle.
-% As a general rule, do not put math, special symbols or citations
-% in the abstract or keywords.
 \IEEEtitleabstractindextext{%
 \begin{abstract}
-The abstract goes here.
+This paper describes the implementation of a visual-inertial odometery localization algorithm on an FPV drone. The UZH-FPV Drone Racing Dataset (\cite{Delmerico19icra}) was used to tune and evaluate the performance of the algorithm. A cascaded filtering approach—combining a vision-based point cloud matching algorithm, the Madgwick filter, and a Kalman filter—was employed to estimate the drone's pose and position in the world frame with reasonable accuracy. The results show the drone was able to localize itself in the world frame with a root mean square error (RSME) of (TODO) in position and <= 0.05 rad in orientation. The implemented VIO algorithm only requires IMU and camera data, making it suitable for use in GPS-denied or off-world environments.
 \end{abstract}
 }
 
@@ -411,31 +382,8 @@ The abstract goes here.
 \maketitle
 
 
-% To allow for easy dual compilation without having to reenter the
-% abstract/keywords data, the \IEEEtitleabstractindextext text will
-% not be used in maketitle, but will appear (i.e., to be "transported")
-% here as \IEEEdisplaynontitleabstractindextext when the compsoc 
-% or transmag modes are not selected <OR> if conference mode is selected 
-% - because all conference papers position the abstract like regular
-% papers do.
 \IEEEdisplaynontitleabstractindextext
-% \IEEEdisplaynontitleabstractindextext has no effect when using
-% compsoc or transmag under a non-conference mode.
 
-
-
-
-
-
-
-% For peer review papers, you can put extra information on the cover
-% page as needed:
-% \ifCLASSOPTIONpeerreview
-% \begin{center} \bfseries EDICS Category: 3-BBND \end{center}
-% \fi
-%
-% For peerreview papers, this IEEEtran command inserts a page break and
-% creates the second title. It will be ignored for other modes.
 \IEEEpeerreviewmaketitle
 
 % METHODS AND MATERIALS
@@ -443,43 +391,6 @@ The abstract goes here.
 \subfile{madgwick}
 \section{Results and Key Findings}
 \subfile{orientation_results}
-
-
-\section{Introduction}
-% The very first letter is a 2 line initial drop letter followed
-% by the rest of the first word in caps.
-% 
-% form to use if the first word consists of a single letter:
-% \IEEEPARstart{A}{demo} file is ....
-% 
-% form to use if you need the single drop letter followed by
-% normal text (unknown if ever used by the IEEE):
-% \IEEEPARstart{A}{}demo file is ....
-% 
-% Some journals put the first two words in caps:
-% \IEEEPARstart{T}{his demo} file is ....
-% 
-% Here we have the typical use of a "T" for an initial drop letter
-% and "HIS" in caps to complete the first word.
-\IEEEPARstart{T}{his} demo file is intended to serve as a ``starter file''
-for IEEE \textsc{Transactions on Magnetics} journal papers produced under \LaTeX\ using
-IEEEtran.cls version 1.8b and later.
-% You must have at least 2 lines in the paragraph with the drop letter
-% (should never be an issue)
-I wish you the best of success.
-
-\hfill mds
- 
-\hfill August 26, 2015
-
-\subsection{Subsection Heading Here}
-Subsection text here.
-
-% needed in second column of first page if using \IEEEpubid
-%\IEEEpubidadjcol
-
-\subsubsection{Subsubsection Heading Here}
-Subsubsection text here.
 
 
 % An example of a floating figure using the graphicx package.
