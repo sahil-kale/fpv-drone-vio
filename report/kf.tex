@@ -4,7 +4,9 @@
 A Kalman Filter is a type of algorithm which predicts the states of a system using their dynamics, and correcting the prediction with feedback from an external sensor. The filter is used to fuse the data coming from the IMU and the data from the camera. 
 In the case of the project, the Kalman filter was used to predict the position of the drone relative to the world frame. The states of the Kalman Filter were thus 
 
-\begin{equation}$$ [ t_x, t_y, t_z, v_x, v_y, v_z ] $$ \end{equation}  which represent the translation and velocity of the drone in world frame. 
+\begin{equation} 
+    [ t_x, t_y, t_z, v_x, v_y, v_z ] 
+\end{equation}  which represent the translation and velocity of the drone in world frame. 
 The inputs of the system will be the IMU acceleration data and the camera distance output, while the output of the system will be the updated position of the drone.
 
 The filter uses various noise and covariance matrices to add uncertainty to the model. THe main matrices are the P, Q and R matrix. The P matrix - State Covariance Matrix, is responsible for representing the uncertainty in the system states. It essentially represents the trust in the state variables vs the measured values.
@@ -19,18 +21,20 @@ Before processing the acceleration in world frame, the acceleration from the IMU
 Once the world frame acceleration is calculated, the position and velocity states of drone can be computed.
 
 The equations look as follows:
+
+
 \begin{align*}
-    \intertext{Input Data: [a_x, a_y, a_z]}
-    \\[-1em]
-    \intertext{Displacement:}
+    \textbf{Velocity:} \\
+    v_x[k] &= v_x[k-1] + a_x[k] \cdot \Delta T \\
+    v_y[k] &= v_y[k-1] + a_y[k] \cdot \Delta T \\
+    v_z[k] &= v_z[k-1] + a_z[k] \cdot \Delta T
+    \end{align*}
+    
+    \begin{align*}
+    \textbf{Displacement:} \\
     t_x[k] &= t_x[k-1] + v_x[k] \cdot \Delta T \\
     t_y[k] &= t_y[k-1] + v_y[k] \cdot \Delta T \\
-    t_z[k] &= t_z[k-1] + v_z[k] \cdot \Delta T \\
-    \\[-1em]
-    \intertext{Velocity:}
-    v_x[k] &= v_x[k-1] + a_x \cdot \Delta T \\
-    v_y[k] &= v_y[k-1] + a_y \cdot \Delta T \\
-    v_z[k] &= v_z[k-1] + a_z \cdot \Delta T
+    t_z[k] &= t_z[k-1] + v_z[k] \cdot \Delta T
 \end{align*}
     
 As a state-space representation, the dynamics of the system can be written as follows:
@@ -50,41 +54,38 @@ As a state-space representation, the dynamics of the system can be written as fo
     a_y \\
     a_z
     \end{bmatrix}$}}
-    \end{align*}
+\end{align*}
 
-    \\
-    \\
-
-    \begin{align*}
-        A &= 
-        \begin{bmatrix}
-        1 & 0 & 0 & \Delta T & 0 & 0 \\
-        0 & 1 & 0 & 0 & \Delta T & 0 \\
-        0 & 0 & 1 & 0 & 0 & \Delta T \\
-        0 & 0 & 0 & 1 & 0 & 0 \\
-        0 & 0 & 0 & 0 & 1 & 0 \\
-        0 & 0 & 0 & 0 & 0 & 1 \\
-        \end{bmatrix}
-        \\[1em]
-        B &=
-        \begin{bmatrix}
-        0 & 0 & 0 \\
-        0 & 0 & 0 \\
-        0 & 0 & 0 \\
-        \Delta T & 0 & 0 \\
-        0 & \Delta T & 0 \\
-        0 & 0 & \Delta T \\
-        \end{bmatrix}
-        \\[1em]
-        x[k+1] &= A \cdot x[k] + B \cdot u[k]
-        \\[1em]
-        C &=
-        \begin{bmatrix}
-        1 & 0 & 0 & 0 & 0 & 0 \\
-        0 & 1 & 0 & 0 & 0 & 0 \\
-        0 & 0 & 1 & 0 & 0 & 0 \\
-        \end{bmatrix}
-    \end{align*}
+\begin{align*}
+    A &= 
+    \begin{bmatrix}
+    1 & 0 & 0 & \Delta T & 0 & 0 \\
+    0 & 1 & 0 & 0 & \Delta T & 0 \\
+    0 & 0 & 1 & 0 & 0 & \Delta T \\
+    0 & 0 & 0 & 1 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 1 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 1 \\
+    \end{bmatrix}
+    \\[1em]
+    B &=
+    \begin{bmatrix}
+    0 & 0 & 0 \\
+    0 & 0 & 0 \\
+    0 & 0 & 0 \\
+    \Delta T & 0 & 0 \\
+    0 & \Delta T & 0 \\
+    0 & 0 & \Delta T \\
+    \end{bmatrix}
+    \\[1em]
+    x[k+1] &= A \cdot x[k] + B \cdot u[k]
+    \\[1em]
+    C &=
+    \begin{bmatrix}
+    1 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 1 & 0 & 0 & 0 \\
+    \end{bmatrix}
+\end{align*}
 
 
 The predicted uncertainty of the states are also recomputed at the end of the predict state suing the following equation.
@@ -108,11 +109,9 @@ The states are then updated using the Kalman Gain and the outputs of the camera 
 \end{eqnarray*}
 
 The estimate is also updated using the states from the predict step and the states of the sensor, in our case being the camera. 
-The estimated measurements are denoted with a \hat{} whereas the sensor measurements are denoted regularly. 
+The estimated measurements are denoted with $\hat{x}$, whereas the sensor measurements are denoted regularly. 
 \begin{equation*}
     \hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k (z_k - H \hat{x}_{k|k-1})
 \end{equation*}
-
-
 
 \end{document}
