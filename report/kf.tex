@@ -1,4 +1,4 @@
-\documentclass[bare_jrnl_transmag]{subfiles}
+ \documentclass[bare_jrnl_transmag]{subfiles}
 \begin{document}
 \subsection{Kalman Filter Theory}
 A Kalman Filter is a type of algorithm which predicts the states of a system using their dynamics, and correcting the prediction with feedback from an external sensor. The filter is used to fuse the data coming from the IMU and the data from the camera. 
@@ -22,15 +22,12 @@ Once the world frame acceleration is calculated, the position and velocity state
 
 The equations look as follows:
 
-
 \begin{align*}
     \textbf{Velocity:} \\
     v_x[k] &= v_x[k-1] + a_x[k] \cdot \Delta T \\
     v_y[k] &= v_y[k-1] + a_y[k] \cdot \Delta T \\
     v_z[k] &= v_z[k-1] + a_z[k] \cdot \Delta T
-    \end{align*}
-    
-    \begin{align*}
+\\
     \textbf{Displacement:} \\
     t_x[k] &= t_x[k-1] + v_x[k] \cdot \Delta T \\
     t_y[k] &= t_y[k-1] + v_y[k] \cdot \Delta T \\
@@ -38,6 +35,8 @@ The equations look as follows:
 \end{align*}
     
 As a state-space representation, the dynamics of the system can be written as follows:
+
+The state vector and inputs are listed below:
 
 \begin{align*}
     x[k] &= {\null\hbox{$\begin{bmatrix}
@@ -56,6 +55,8 @@ As a state-space representation, the dynamics of the system can be written as fo
     \end{bmatrix}$}}
 \end{align*}
 
+The matrices for thr dynamics of the system are as follows:
+
 \begin{align*}
     A &= 
     \begin{bmatrix}
@@ -67,7 +68,7 @@ As a state-space representation, the dynamics of the system can be written as fo
     0 & 0 & 0 & 0 & 0 & 1 \\
     \end{bmatrix}
     \\[1em]
-    B &=
+    B &= 
     \begin{bmatrix}
     0 & 0 & 0 \\
     0 & 0 & 0 \\
@@ -79,14 +80,22 @@ As a state-space representation, the dynamics of the system can be written as fo
     \\[1em]
     x[k+1] &= A \cdot x[k] + B \cdot u[k]
     \\[1em]
-    C &=
+    C &= 
     \begin{bmatrix}
     1 & 0 & 0 & 0 & 0 & 0 \\
     0 & 1 & 0 & 0 & 0 & 0 \\
     0 & 0 & 1 & 0 & 0 & 0 \\
     \end{bmatrix}
+    \\[1em]
+    D &= 
+    \begin{bmatrix}
+    0 & 0 & 0 \\
+    0 & 0 & 0 \\
+    0 & 0 & 0 \\
+    \end{bmatrix}
+    \\[1em]
+    z[k] &= C \cdot x[k] + D \cdot u[k]
 \end{align*}
-
 
 The predicted uncertainty of the states are also recomputed at the end of the predict state suing the following equation.
 
@@ -104,7 +113,7 @@ At each update step, the matrix is updated for the new gain, essentially recordi
 The states are then updated using the Kalman Gain and the outputs of the camera and prediction.
 
 \begin{eqnarray*}
-    K_k = P_{k|k-1} C^T * (C P_{k|k-1} C^T + R)^{-1} \\
+    K_k = P_{k|k-1} C^T * (C P_{k|k-1} C^T + R)^{-1} \\[1em]
     P_{k|k} = (I - K_k C) P_{k|k-1}
 \end{eqnarray*}
 
