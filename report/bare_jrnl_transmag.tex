@@ -372,7 +372,7 @@
 
 \IEEEtitleabstractindextext{%
 \begin{abstract}
-This paper describes the implementation of a visual-inertial odometery localization algorithm on an FPV drone. The UZH-FPV Drone Racing Dataset (\cite{Delmerico19icra}) was used to tune and evaluate the performance of the algorithm. A cascaded filtering approach --- combining a vision-based point cloud matching algorithm, the Madgwick filter, and a Kalman filter --- was employed to estimate the drone's pose and position in the world frame with reasonable accuracy. The results show the drone was able to localize itself in the world frame with a root mean square error (RSME) of (TODO) in position and $\leq$ 0.05 rad in orientation. The implemented VIO algorithm only requires IMU and camera data, making it suitable for use in GPS-denied or off-world environments.
+This paper describes the implementation of a visual-inertial odometery localization algorithm on an FPV drone. The UZH-FPV Drone Racing Dataset (\cite{Delmerico19icra}) was used to tune and evaluate the performance of the algorithm. A cascaded filtering approach --- combining a vision-based point cloud matching algorithm, the Madgwick filter, and a Kalman filter --- was employed to estimate the drone's pose and position in the world frame with reasonable accuracy. The results show the drone was able to localize itself in the world frame with a root mean square error (RMSE) of (TODO) in position and $\leq$ 0.05 rad in orientation. The implemented VIO algorithm only requires IMU and camera data, making it suitable for use in GPS-denied or off-world environments.
 \end{abstract}
 }
 
@@ -395,6 +395,7 @@ This paper describes the implementation of a visual-inertial odometery localizat
 % Results and Key Findings
 \section{Results and Key Findings}
 \subfile{orientation_results}
+\subfile{vision_results}
 
 
 % An example of a floating figure using the graphicx package.
