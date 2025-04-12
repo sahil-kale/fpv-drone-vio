@@ -181,7 +181,7 @@ def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_de
 
 
 #Frame on which we want to start evaluating\
-start_frame = 500
+start_frame = 100
 
 left_images = left_images[start_frame:]
 right_images = right_images[start_frame:]
@@ -325,7 +325,7 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 maximum = len(ground_truth_transformations)
-limit = 500
+limit = 50
 
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images), start=1):
     if i >= limit - 1:
@@ -595,3 +595,12 @@ for i in range(2):
             axs[i, j].set_xticklabels([f'{tick * 1000:.0f}' for tick in axs[i, j].get_xticks()])
 fig4.tight_layout(pad=1.5)  # Increase padding between plots
 plt.show()
+
+def calculate_covariance(position_res, rotation_res):
+    cov_pr = np.cov(np.vstack([position_res.T, rotation_res.T]))
+    return cov_pr
+
+
+covariance_matrix = calculate_covariance(position_residuals, rotation_residuals)
+print("\nCovariance Matrix:")   
+print(covariance_matrix)
