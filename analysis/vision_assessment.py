@@ -568,17 +568,30 @@ ax6.legend()
 plt.show(block=False)
 
 #Plot distributions of residuals x, y, z, rotx, roty, rotz
-fig4, axs = plt.subplots(2, 3, figsize=(15, 10))
-axs[0, 0].hist(position_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[0, 0].set_title('Position Residuals X')
-axs[0, 1].hist(position_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[0, 1].set_title('Position Residuals Y')
-axs[0, 2].hist(position_residuals[:, 2], bins=50, color='b', alpha=0.7)
-axs[1, 0].hist(rotation_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[1, 0].set_title('Rotation Residuals X')
-axs[1, 1].hist(rotation_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[1, 1].set_title('Rotation Residuals Y')
-axs[1, 2].hist(rotation_residuals[:, 2], bins=50, color='b', alpha=0.7)
-fig4.suptitle('Residuals Distributions')
-plt.tight_layout()
+labels = ['$x$', '$y$', '$z$', '$\\theta_x$', '$\\theta_y$', '$\\theta_z$']
+colors = ['r', 'g', 'b']
+data = [position_residuals, rotation_residuals]
+units = ['[m]', '[mrad]']
+
+plt.rcParams.update({
+    'font.size': 12,
+    'axes.titlesize': 12,
+    'axes.labelsize': 11,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'figure.titlesize': 14
+})
+
+
+fig4, axs = plt.subplots(2, 3, figsize=(6, 4), dpi=300)
+
+for i in range(2):
+    for j in range(3):
+        axs[i, j].hist(data[i][:, j], bins=50, color=colors[j], alpha=0.7)
+        axs[i, j].set_title(labels[i * 3 + j])
+        axs[i, j].set_xlabel(f'Error {units[i]}')
+        axs[i, j].set_ylabel('Frequency')
+        if i == 1:
+            axs[i, j].set_xticklabels([f'{tick * 1000:.0f}' for tick in axs[i, j].get_xticks()])
+fig4.tight_layout(pad=1.5)  # Increase padding between plots
 plt.show()
