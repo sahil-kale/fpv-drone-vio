@@ -2,6 +2,8 @@
 \begin{document}
 
 \subsection{Vision Assessment}
+The error in the relative transformation output from the vision system was measured across 500 dataset samples. Errors were quantified as the difference between measured and ground-truth transformations in the drone reference frame. Translational errors were computed as vector differences. Rotational errors were represented in Rodriguez vector form. Results are shown in Table \ref{tab:vision-error-stats}.
+
 \begin{table}[htbp]
     \centering
     \begin{tabular}{lccc}
@@ -16,7 +18,7 @@
     $\theta_z$ & 0.0106 & 0.0009 & 0.0324 \\ \hline
     \end{tabular}
     \caption{Error statistics for position and rotation}
-    \label{tab:error-stats}
+    \label{tab:vision-error-stats}
     \end{table}
 
 \end{document}
