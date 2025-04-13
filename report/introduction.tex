@@ -3,9 +3,6 @@
 
 Visual-inertial odometry (VIO) is the process of localization using camera and IMU data. It is commonly used in autonomous applications where other methods such as LIDAR or GPS are infeasible. These can include operating in GPS-denied environments such as in defense or mining applications, as well as scenarios where weight is a significant factor. 
 
-% move kalman filter and other inertial stuff here
-\subfile{kf_intro}
-
 VIO has been successfully implemented in many applications, and a large amount of literature exists on the implementation and validation of these systems. A notable example of VIO use is the NASA Mars Helicopter, which used VIO in combination with an altimeter to enable autonomous flight on a highly mass-optimized platform. To reduce the computational load compared to commonly implemented SLAM algorithms, the Mars helicopter used velocimetry, using the vision system to determine relative motions as opposed to absolute position. Specifically, the algorithm used is a derivative of an Extended Kalman Filter (EKF) known as MAVen (minimally augmented state algorithm for vision-based navigation). 
 
 \end{document}
