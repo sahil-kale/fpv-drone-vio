@@ -113,7 +113,7 @@ class Visualizer:
                     right_image = cv2.imread(right_path, cv2.IMREAD_GRAYSCALE)
 
                     if left_image is None or right_image is None:
-                        print(f"⚠️ Could not load image(s) at time {next_vision_time}")
+                        print(f"Could not load image(s) at time {next_vision_time}")
                     else:
                         left_image_display.set_data(left_image.astype(np.float32) / 255.0)
                         right_image_display.set_data(right_image.astype(np.float32) / 255.0)

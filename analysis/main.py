@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from interface import *
-from imu_ekf import IMUKalmanFilter
+from imu_kf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint

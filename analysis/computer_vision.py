@@ -777,9 +777,6 @@ if __name__ == "__main__":
     filtered_matches1 = consistent_matches1
     filtered_matches2 = consistent_matches2
 
-    # uncommment to show plot
-    # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
-
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
 
     pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
