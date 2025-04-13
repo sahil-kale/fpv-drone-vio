@@ -7,20 +7,9 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 from interface import VisionInputFrame, VisionRelativeOdometry
 import computer_vision as mycv
 import cv2
-cv2.setNumThreads(1)
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation, Slerp
-from itertools import product
-import logging
-from multiprocessing_logging import install_mp_handler
-
-logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(processName)s - %(message)s')
-install_mp_handler() 
-
-from multiprocessing import Pool
 
 # Read ground truth file and get the first timestamp
 with open(r'dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt') as f:
