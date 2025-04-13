@@ -42,7 +42,7 @@ class IMUKalmanFilter:
 
     def predict(self, dt, imu_input_frame: IMUInputFrame):
         # Extract IMU data
-        ang_vel = imu_input_frame.get_gyro_data()
+        angle = imu_input_frame.get_gyro_data()
         lin_acc = imu_input_frame.get_accel_data()
         
         # Update dt
@@ -51,19 +51,13 @@ class IMUKalmanFilter:
         # Extract state variables
         x, y, z, v_x, v_y, v_z, t_x, t_y, t_z = self.state
 
-        gyro_x = ang_vel[0] - self.gyro_bias[0]
-        gyro_y = ang_vel[1] - self.gyro_bias[1]
-        gyro_z = ang_vel[2] - self.gyro_bias[2]
+        t_x = angle[0] - self.gyro_bias[0]
+        t_y = angle[1] - self.gyro_bias[1]
+        t_z = angle[2] - self.gyro_bias[2]
 
         acc_x = lin_acc[0]
         acc_y = lin_acc[1]
         acc_z = lin_acc[2]
-
-        t_x = gyro_x 
-        t_y = gyro_y
-        t_z = gyro_z
-        
-
 
         # Transfer the acceleration vector to the world frame
         world_to_drone_rotation = euler_to_rotation_matrix(t_x.item(), t_y.item(), t_z.item())
