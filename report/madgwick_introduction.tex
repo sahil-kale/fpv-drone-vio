@@ -1,6 +1,6 @@
 \documentclass[bare_jrnl_transmag]{subfiles}
 \begin{document}
-\subsection{Orientation Filter Implementation}
+\subsection{Madgwick Filter Background}
 The Madgwick filter is an orientation filter that uses quaternions to describe the orientation from a fixed body frame to a moving inertial frame \cite{ahrs_madgwick}. As a result of the algorithms using quaternions, it does not suffer from the problems presented orientation representation as Euler angles, such as gimbal lock. The equations of the filter (taken from \cite{ahrs_madgwick}) are restated below:
 
 \subsubsection{Gyroscopic Integration Step}
@@ -10,8 +10,6 @@ The first step of the Madgwick filter (alongside a number of other inertial navi
     q_{k} = q_{k-1} + \frac{q_{k-1} \otimes [0 \ \omega_x \ \omega_y \ \omega_z] \Delta t}{2}
     \label{eq:madgwick_gyro_integration}
 \end{equation}
-
-Note that unlike other filters that are capable of measuring bias in the gyroscopic measurements (ex: MEKF), the Madgwick filter is not capable of doing so (though it can implicitly correct for bias within the correction step). As a result, the filter calculates the average gyroscopic bias on startup and subtracts these values before integrating them per Equation \ref{eq:madgwick_gyro_integration}.
 
 \subsubsection{Accelerometer Correction Step}
 The second step of the Madgwick filter is to correct the orientation estimate using the accelerometer measurements. The accelerometer measurements are represented in the body frame as $[a_x \ a_y \ a_z]$, with the goal of the correction step to align the accelerometer measurements, converted to the world frame, with the gravity vector in the world frame, represented as $[0 \ 0 \ g]$ (though normalized to $[0 \ 0 \ 1]$ to simplify the equations - note the gravity vector pointing up is due to how the sensor frame is oriented). From this, an optimization problem can be formed to minimize the difference between the two vectors, shown in Equations \ref{eq:madgwick_optimization_function} and \ref{eq:madgwick_optimization_function_jacobian}.
