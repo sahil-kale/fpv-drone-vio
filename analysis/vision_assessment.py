@@ -1,49 +1,57 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 from interface import VisionInputFrame, VisionRelativeOdometry
 import computer_vision as mycv
 import cv2
 
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dataset', type=str, choices=["training", "testing"], default="training", help='Path to the dataset directory [training, testing]')
+
+args = parser.parse_args()
+
+dataset_path = r'dataset/vio_dataset_1'
+if args.dataset == "testing":
+    dataset_path = r'dataset/indoor_forward_9_snapdragon_with_gt'
 
 # Read ground truth file and get the first timestamp
-with open(r'dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt') as f:
+with open(os.path.join(dataset_path, 'homogenous_ground_truth_converted_by_us.txt')) as f:
     ground_truth_lines = f.readlines()[1:]  # skip header 
 first_gt_time = float(ground_truth_lines[0].split()[0])
 
 #load left images
-with open(r'dataset/vio_dataset_1/left_images.txt') as f:
+with open(os.path.join(dataset_path,'left_images.txt')) as f:
     image_timestamps = []
     left_images = []
     for i, line in enumerate(f):
         if line.strip() and not line.startswith("#"):
             parts = line.split()
             if len(parts) == 3:
-                left_images.append(os.path.join('dataset/vio_dataset_1', parts[2]))
+                left_images.append(os.path.join(dataset_path, parts[2]))
                 image_timestamps.append(float(parts[1]))
 
 #load right imagrs
-with open(r'dataset/vio_dataset_1/right_images.txt') as f:
+with open(os.path.join(dataset_path,'right_images.txt')) as f:
     right_images = []
     for line in f:
         if line.strip() and not line.startswith("#"):
             parts = line.split()
             if len(parts) == 3:
-                right_images.append(os.path.join('dataset/vio_dataset_1', parts[2]))
+                right_images.append(os.path.join(dataset_path, parts[2]))
 
 #Check that the arrays are the same length
 if len(left_images) != len(right_images):
     raise ValueError("The number of left and right images do not match.")
 
+START_FRAME = 500
+
 first_valid_index = next(i for i, ts in enumerate(image_timestamps) if ts >= first_gt_time)
-image_timestamps = image_timestamps[first_valid_index+500:]
-left_images = left_images[first_valid_index+500:]
-right_images = right_images[first_valid_index+500:]
+image_timestamps = image_timestamps[first_valid_index+START_FRAME:]
+left_images = left_images[first_valid_index+START_FRAME:]
+right_images = right_images[first_valid_index+START_FRAME:]
 
 # Load homogenous ground truth coordinates of the prism
 ground_truth_transformations = []
