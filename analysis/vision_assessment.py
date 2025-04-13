@@ -24,28 +24,27 @@ from multiprocessing import Pool
 
 # Read ground truth file and get the first timestamp
 with open(r'dataset/vio_dataset_1/homogenous_ground_truth_converted_by_us.txt') as f:
-    ground_truth_lines = f.readlines()[1:]  # Skip header line
-if not ground_truth_lines or not ground_truth_lines[0].strip():
-    raise ValueError("Ground truth file is empty or invalid.")
+    ground_truth_lines = f.readlines()[1:]  # skip header 
 first_gt_time = float(ground_truth_lines[0].split()[0])
 
-
+#load left images
 with open(r'dataset/vio_dataset_1/left_images.txt') as f:
     image_timestamps = []
     left_images = []
     for i, line in enumerate(f):
-        if line.strip() and not line.startswith("#"):  # Skip empty lines and comments
+        if line.strip() and not line.startswith("#"):
             parts = line.split()
-            if len(parts) == 3:  # Ensure the line has the correct format
+            if len(parts) == 3:
                 left_images.append(os.path.join('dataset/vio_dataset_1', parts[2]))
-                image_timestamps.append(float(parts[1]))  # Store the timestamp
+                image_timestamps.append(float(parts[1]))
 
+#load right imagrs
 with open(r'dataset/vio_dataset_1/right_images.txt') as f:
     right_images = []
     for line in f:
-        if line.strip() and not line.startswith("#"):  # Skip empty lines and comments
+        if line.strip() and not line.startswith("#"):
             parts = line.split()
-            if len(parts) == 3:  # Ensure the line has the correct format
+            if len(parts) == 3:
                 right_images.append(os.path.join('dataset/vio_dataset_1', parts[2]))
 
 #Check that the arrays are the same length
@@ -73,7 +72,7 @@ for timestamp in image_timestamps:
                 closest_line = parts[1:]
                 idx = i  # update starting index
             else:
-                # When the time difference increases, assume we've passed the closest match.
+                #
                 break
     if closest_line is None:
         raise ValueError(f"No ground truth transformation found for timestamp {timestamp}")
