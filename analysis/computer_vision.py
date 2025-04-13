@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation, Slerp
 
 
-#Load left and right images
+#Load left and right images from the interface
 def load_images(input:interface.VisionInputFrame):
     left_image = cv2.imread(input.get_image_left_path())
     right_image = cv2.imread(input.get_image_right_path())
@@ -306,17 +306,17 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
     if draw_rich_keypoints:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
-                                                  color=(0, 255, 0))  # Green keypoints
+                                                  color=(0, 255, 0))
     else:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
-                                                  color=(0, 255, 0))  # Green keypoints
+                                                  color=(0, 255, 0))
     if draw_rich_keypoints:
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
-                                                  color=(0, 255, 0))  # Green keypoints
+                                                  color=(0, 255, 0))
     else:
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
-                                                  color=(0, 255, 0))  # Green keypoints
+                                                  color=(0, 255, 0))
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
