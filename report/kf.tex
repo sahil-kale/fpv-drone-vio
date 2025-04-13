@@ -2,10 +2,10 @@
 \begin{document} 
 
 \subsubsection{Predict}
-The predict stage of the Kalman filter is responsible for taking in the system inputs and determining the new states based on the dynamics of the system. In the case of the drone, the assumption of linear displacement was made due to the quick sampling time of the IMU. The dynamics of the drone flight is based on linear motion laws. Since the input of the predict step is the acceleration of the drone in the drone frame, a couple modifications must be made to the data. Firstly, the linear acceleration is integrated to get velocity. The previous velocity measurement is used to update the position estimate of the drone. Since the time steps are small, it can be assumed that the velocity will not change significantly between the time steps. 
-Before processing the acceleration in world frame, the acceleration from the IMU (in IMU/drone frame) needs to be rotated towards the current pose. To convert the acceleration from drone frame to world frame, the pose from the Madgwick filter is fed into a combined rotation matrix. This matrix is applied to the acceleration to get the acceleration in the world xyz frame. \newline
+The predict stage of the Kalman filter was responsible for taking in the system inputs and determining the new states based on the dynamics of the system. In the case of the drone, the assumption of linear displacement was made due to the quick sampling time of the IMU. The dynamics of the drone flight was based on linear motion laws. Since the input of the predict step is the acceleration of the drone in the drone frame, a couple modifications must be made to the data. Firstly, the linear acceleration was integrated to get velocity. The previous velocity measurement were used to update the position estimate of the drone. Since the time steps were small, it was assumed that the velocity would not change significantly between the time steps. 
+Before processing the acceleration in world frame, the acceleration from the IMU (in IMU/drone frame) needed to be rotated towards the current pose. To convert the acceleration from drone frame to world frame, the pose from the Madgwick filter was fed into a combined rotation matrix. This matrix was applied to the acceleration to get the acceleration in the world xyz frame. \newline
 
-Once the world frame acceleration is calculated, the position and velocity states of drone can be computed, as shown in the equations below:
+Once the world frame acceleration was calculated, the position and velocity states of drone were computed, as shown in the equations below:
 
 
 \noindent\textbf{Velocity:}
@@ -26,7 +26,7 @@ t_z[k] &= t_z[k-1] + v_z[k] \cdot \Delta T
 \end{aligned}
 \end{equation*}
     
-As a state-space representation, the dynamics of the system can be derived. The state vector and inputs are listed below:
+The dynamics of the system were derived as a state-space representation. The state vector and inputs are listed below:
 
 \begin{align*}
     x[k] &= {\null\hbox{$\begin{bmatrix}
@@ -80,7 +80,7 @@ The matrices for the dynamics of the system are as follows:
     z[k] &= C x[k]
 \end{align*}
 
-The predicted uncertainty of the states are also recomputed at the end of the predict state suing the following equation.
+The predicted uncertainty of the states were also recomputed at the end of the predict state using the following equation.
 
 \begin{equation*}
     P_{k|k-1} = A P_{k-1|k-1} A^T + Q
@@ -88,16 +88,16 @@ The predicted uncertainty of the states are also recomputed at the end of the pr
 \newline
 
 \subsubsection{Update}
-The update phase of the Kalman filter is where the measurements of the sensor are incorporated into the state estimate. The predicted state is compared to another measurement (in this case, the VIO output) to fuse the data together. 
-The Kalman gain how much of a correction needs to be applied to the states given the prediction and sensor measurements. It is calculated using the error covariance matrix, the measurement noise matrix and the output state matrix. 
-At each update step, the matrix is updated for the new gain. The states are then updated using the Kalman Gain and the outputs of the camera and prediction.
+The measurements of the sensors were incorporated into the state estimate in the update step of the Kalman filter. The predicted state was compared to another measurement (in this case, the VIO output) to fuse the data together. 
+The Kalman gain represented how much of a correction needs to be applied to the states given the prediction and sensor measurements. It was calculated using the error covariance matrix, the measurement noise matrix and the output state matrix. 
+At each update step, the matrix was updated for the new gain. The states were then updated using the Kalman Gain and the outputs of the camera and prediction.
 
 \begin{eqnarray*}
     K_k = P_{k|k-1} C^T (C P_{k|k-1} C^T + R)^{-1} \\[1em]
     P_{k|k} = (I - K_k C) P_{k|k-1}
 \end{eqnarray*}
 
-The estimate is also updated using the states from the predict step and the states of the sensor, in our case being the camera. 
+The estimate was also updated using the states from the predict step and the states of the sensor, in our case being the camera. 
 The estimated measurements are denoted with $\hat{x}$. 
 \begin{equation*}
     \hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k (z_k - H \hat{x}_{k|k-1})
@@ -110,10 +110,10 @@ The Kalman filter was implemented in Python by developing a class which encapsul
 
 The class consists of two functions -- update, and predict.\newline
 
-The predict function takes the output of the Madgwick filter - the orientation of the drone in its own frame of reference. These are then converted to world frame using rotation matrices Using the previous state velocities, the current position of the drone in the world frame is updated. Furthermore, the velocities are also updated using the most recent acceleration data. Finally, the state error covariance matrix, P is updated in the predict step. \newline
+The predict function takes the output of the Madgwick filter - the orientation of the drone in its own frame of reference. These were then converted to world frame using rotation matrices. Using the previous state velocities, the current position of the drone in the world frame was updated. Furthermore, the velocities were also updated using the most recent acceleration data. Finally, the state error covariance matrix, P was updated in the predict step. \newline
 
-The update function takes the camera data and the current state of the drone. The camera data is used to calculate the Kalman gain, which is then used to update the estimated state of the drone. The error covariance matrix, P, is also updated in this step.\newline
+The update function took the camera data and the current state of the drone. The camera data was used to calculate the Kalman gain, which was then used to update the estimated state of the drone. The error covariance matrix, P, was also updated in this step.\newline
 
-The linear algebra operations and definition of the matrices are done using the Numpy library. The rotation matrices are defined using the Euler angles from the Madgwick filter. 
+The linear algebra operations and definition of the matrices were done using the Numpy library. The rotation matrices were defined using the Euler angles from the Madgwick filter. 
 
 \end{document}
