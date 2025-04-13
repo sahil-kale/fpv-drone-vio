@@ -1,0 +1,18 @@
+\documentclass[bare_jrnl_transmag]{subfiles}
+
+\begin{document}
+\subsection{Kalman Filter Theory}
+A Kalman Filter is a type of algorithm which predicts the states of a system using their dynamics, and correcting the prediction with feedback from an external sensor. The filter is used to fuse the data coming from the IMU and the data from the camera. 
+In the case of the project, the Kalman filter was used to predict the position of the drone relative to the world frame. The states of the Kalman Filter were thus 
+
+\begin{equation} 
+    [ t_x, t_y, t_z, v_x, v_y, v_z ] 
+\end{equation}  which represent the translation and velocity of the drone in world frame. 
+The inputs of the system will be the IMU acceleration data and the camera distance output, while the output of the system will be the updated position of the drone.
+
+The filter uses various noise and covariance matrices to add uncertainty to the model. THe main matrices are the P, Q and R matrix. The P matrix - State Covariance Matrix, is responsible for representing the uncertainty in the system states. It essentially represents the trust in the state variables vs the measured values.
+The Q and R matrix represent two diffeent noise matrices. The Q matrix represents the process noise matrix, which models the uncertainty in the system dynamics. If simplifications are made, or affects ignored, this term helps account for that variation. The R matrix represents the Measurement Noise, which models how noisy the sensor measurement truly is. 
+
+Together these matrices, along with the calculated outputs from the predict and measurment stage are used to calculate the Kalman Gain. This gain weighs the prediction vs the measured state to create the required output. 
+
+\end{document}
