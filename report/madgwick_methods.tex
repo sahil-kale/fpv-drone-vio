@@ -1,7 +1,7 @@
 \documentclass[bare_jrnl_transmag]{subfiles}
 \begin{document}
 \subsection{Madgwick Filter Implementation}
-The Madgwick filter was implemented in Python to provide an orientation pose estimate, using Pandas to extract the data \cite{pandas}. However, due to the nature of the drone's flight and real-world conditions, modifications were required to the original algorithm to ensure the filter was able to provide a stable orientation estimate. The modifications made to the Madgwick filter are described below. \newline
+The Madgwick filter was implemented in Python to provide an orientation pose estimate. However, due to the nature of the drone's flight and real-world conditions, modifications were required to the original algorithm to ensure the filter was able to provide a stable orientation estimate. The modifications made to the Madgwick filter are described below. \newline
 
 \subsubsection{Gyroscope Bias Compensation}
 Unlike other inertial orientation filters that are capable of measuring bias in the gyroscopic measurements (ex: Multiplicative EKFs), the Madgwick filter is not capable of doing so. The Madgwick filter can implicitly correct for gyroscopic bias with the correction step, but it does so relatively poorly as the bias is not explicitly modelled. As a result, the filter calculates the average gyroscopic bias on startup and subtracts these values before integrating them per Equation \ref{eq:madgwick_gyro_integration}. \newline
