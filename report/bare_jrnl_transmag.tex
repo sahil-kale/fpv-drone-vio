@@ -526,8 +526,24 @@ This paper describes the implementation of a visual-inertial odometery localizat
 
 
 \appendices
-\section{Proof of the First Zonklar Equation}
-Appendix one text goes here.
+\section{Diagrams for Vision Odometry Undistortion, Triangulation, and Point Cloud Matching} \label{app:vision_diagrams}
+Figure \ref{fig:undistortion} shows the process of preparing matched stereo image features for triangulation. The intrinsic camera matrices provided in the dataset were used for undistortion and inverse projection. Triangulation also used the relative transformation matrix between the two cameras in the stereo pair, and was done with the OpenCV triangulate function \cite{opencv}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{figures/undistortion.png}
+  \caption{Process for taking matched features, undistorting them, and creating a point cloud with triangulation.}
+  \label{fig:undistortion}
+\end{figure}
+
+Figure \ref{fig:point_cloud_alignment} shows how point clouds from consecutive stereo frames are aligned. A relative transformation is computed to estimate motion between frames based on corresponding 3D points.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{figures/point_cloud_alignment.png}
+  \caption{Process for taking point clouds from two consecutive stereo frames and finding a relative transformation.}
+  \label{fig:point_cloud_alignment}
+\end{figure}
 
 
 % Can use something like this to put references on a page
