@@ -8,11 +8,11 @@ In the case of the project, the Kalman filter was used to predict the position o
 \begin{equation} 
     [ t_x, t_y, t_z, v_x, v_y, v_z ] 
 \end{equation}  which represent the translation and velocity of the drone in world frame. 
-The inputs of the system will be the IMU acceleration data and the camera distance output, while the output of the system will be the updated position of the drone.
+The inputs of the system will be the IMU acceleration data and the camera distance output, while the output of the system will be the updated position of the drone.\newline
 
-The filter uses various noise and covariance matrices to add uncertainty to the model. THe main matrices are the P, Q and R matrix. The P matrix - State Covariance Matrix, is responsible for representing the uncertainty in the system states. It essentially represents the trust in the state variables vs the measured values.
-The Q and R matrix represent two diffeent noise matrices. The Q matrix represents the process noise matrix, which models the uncertainty in the system dynamics. If simplifications are made, or affects ignored, this term helps account for that variation. The R matrix represents the Measurement Noise, which models how noisy the sensor measurement truly is. 
+The filter uses various noise and covariance matrices to add uncertainty to the model. The main matrices are the P, Q and R matrix. The state covariance matrix (P), is responsible for representing the uncertainty in the system states. It essentially represents the trust in the state variables vs. the measured values.
+The Q and R covariance matrices represent two different noises. Q represents the process noise matrix, which models the uncertainty in the system dynamics. R represents the measurement noise covariance, which models how noisy the sensor measurement is.\newline
 
-Together these matrices, along with the calculated outputs from the predict and measurment stage are used to calculate the Kalman Gain. This gain weighs the prediction vs the measured state to create the required output. 
+Together, these matrices, along with the calculated outputs from the predict and measurment stage are used to calculate the Kalman gain. The gain is a measure of the difference between the actual and predicted measurements, and is modulated accordingly using the difference between the predicted and measured states. This is then used to update the state of the system. 
 
 \end{document}
