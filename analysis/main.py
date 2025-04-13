@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     # Code to parse arguments
     parser = argparse.ArgumentParser(description='Arguments for whether ground truth should be used for gyro or accelerometer data')
-    parser.add_argument('--use-gyro-ground-truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
+    parser.add_argument('--use_angle_ground_truth', action='store_true', default=False, help='Whether gyro ground truth should be used')
     parser.add_argument('--steps', type=int, default=15, help='Number of steps to downsample the data for visualization')
     parser.add_argument('--end-stamp', type=int, default=2500, help='Number of samples to use for simulation')
     VISUALIZER_TYPES = [
@@ -192,7 +192,7 @@ if __name__ == '__main__':
 
     for i, imu_input_frame in enumerate(imu_input_frames):
         madgwick_filter.update(imu_input_frame, dt)
-        if (args.use_gyro_ground_truth):
+        if (args.use_angle_ground_truth):
             # Use gyro ground truth data
             imu_input_frame.gyro_data = gt_states[i].state[6:9]
         else:
