@@ -17,7 +17,7 @@ It is observed that the Kalman filter is able to track the ground truth position
     \centering
     \includegraphics[width=0.8\linewidth]{figures/kf_validation_results.png}
     \caption{Kalman filter results on validation set with tracks from both estimated and ground truth performance.}
-    \label{fig:kalman_results_test_set}
+    \label{fig:kalman_results_validation_set}
 \end{figure}
 
 It is observed that the general shape of the movement is identified and supported in the x and y axes. However, there is significant observed drift in the z axes, as seen by the upward corkscrew movement of the drone as per the estimator. Ultimately, the filter was tuned to get an RMSE of [5.02, 3.17, 4.30] for the x, y and z axes respectively.
