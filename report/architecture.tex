@@ -20,4 +20,13 @@ Figure \ref{fig:vio-arch} shows the overall architecture of the algorithm.
 \end{figure}
 
 
+\subsection{Assumptions}
+
+For the system to function with the proposed algorithm, several assumptions were required. 
+The first assumption is that the environment is unknown. The initial position is marked as the start point of the dataset but nothing else is known about the environment.
+
+The second assumption made was that the stereo images were synced in time. If there was a small delay in capture, this could result in a skew in the position assumption.
+
+TThe final assumption made was that the state of the drone cannot undergo a large change between time steps. This assumption is important because the prediction step of the Kalman filter uses previous states to calculate the new position. If the time step is too large, or if there was a very large change between time steps, the prediction would diverge very quickly at that point.  
+
 \end{document}
