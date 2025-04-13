@@ -21,8 +21,8 @@ As a result of the above limitations, the VIO fused algorithm performed better t
 
 Clear limitations of the algorithm include:
 \begin{itemize}
-    \item Drift in the Z axis introduced by the visual fusion. While the cause of this is unknown, a possible explanation is that the camera is not able to accurately measure the Z axis due to the nature of the stereo camera setup during high speed flight or turning motions. As a result, the VIO algorithm falsely integrates the Z axis acceleration, causing drift. This may be mitigated with further tuning of the VIO algorithm or by adding another sensor (ex: barometer) to correct for Z axis drift.
-    \item Yaw drift from the Madgwick filter as run time increases - this may be correctable by employing a magnetometer or with another type of filer that is able to incorporate yaw correction from visual odometry. 
+    \item Drift in the Z axis introduced by the fusion of the visual odometry algorithm. While the cause of this is unknown, a possible explanation is that the camera is not able to accurately measure the Z axis due to the nature of the stereo camera setup during high speed flight or turning motions. As a result, the VIO algorithm falsely integrates the Z axis acceleration, causing drift. This may be mitigated with further tuning of the VIO algorithm or by adding another sensor (ex: barometer) to correct for Z axis drift.
+    \item Yaw drift from the Madgwick filter as run time increases - this may be correctable by employing a magnetometer or with another type of filter that is able to incorporate yaw correction from visual odometry. 
     \item Lack of a robust motion model for the Kalman filter - the current model is a simple constant velocity model, which does not account for acceleration, deceleration, or turning motions. This may be improved with a more complex motion model that is able to account for these factors using interactive multiple model (IMM) filtering or a more complex Kalman filter model.
 \end{itemize}
 
