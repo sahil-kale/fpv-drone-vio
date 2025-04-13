@@ -78,6 +78,7 @@ The predicted uncertainty of the states are also recomputed at the end of the pr
 \begin{equation*}
     P_{k|k-1} = A P_{k-1|k-1} A^T + Q
 \end{equation*}
+\newline
 
 \subsubsection{Update}
 The update phase of the Kalman filter is where the measurements of the sensor are incorporated into the state estimate. The predicted state is compared to another measurement (in this case, the VIO output) to fuse the data together. 
@@ -94,6 +95,7 @@ The estimated measurements are denoted with $\hat{x}$.
 \begin{equation*}
     \hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k (z_k - H \hat{x}_{k|k-1})
 \end{equation*}
+\newline
 
 \subsubsection{Implementation}
 
