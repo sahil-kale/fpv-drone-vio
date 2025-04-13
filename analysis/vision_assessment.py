@@ -325,7 +325,7 @@ estimated_transformations.append(ground_truth_transformations[0])
 
 counter = 0
 maximum = len(ground_truth_transformations)
-limit = 50
+limit = 500
 
 for i, (left_image, right_image) in enumerate(zip(left_images, right_images), start=1):
     if i >= limit - 1:
@@ -604,3 +604,8 @@ def calculate_covariance(position_res, rotation_res):
 covariance_matrix = calculate_covariance(position_residuals, rotation_residuals)
 print("\nCovariance Matrix:")   
 print(covariance_matrix)
+
+for i in range(6):
+    for j in range(6):
+        print(f"{covariance_matrix[i, j]:.5f},", end="\t")
+    print("\n")
