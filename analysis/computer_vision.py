@@ -19,31 +19,20 @@ def preprocess_images(left_image, right_image):
     left_gray = cv2.cvtColor(left_image, cv2.COLOR_BGR2GRAY)
     right_gray = cv2.cvtColor(right_image, cv2.COLOR_BGR2GRAY)
 
-    # Edge-preserving smoothing with bilateral filter
-    # d: diameter of pixel neighborhood; sigmaColor: filter sigma in color space;
-    # sigmaSpace: filter sigma in coordinate space.
     left_gray = cv2.bilateralFilter(left_gray, d=9, sigmaColor=75, sigmaSpace=75)
     right_gray = cv2.bilateralFilter(right_gray, d=9, sigmaColor=75, sigmaSpace=75)
 
     return left_gray, right_gray
 
-
-#Detect "keypoints" and compute descriptors using a feature detector
+# abstract feature extractor class
+# makes it easier to try different algorithms in testing
 class FeatureExtractor(ABC):
-    """
-    Abstract class for feature extraction
-    """
     @abstractmethod
     def extract_features(self, image):
-        """
-        Take a single image input (greyscale) and return keypoints and descriptors
-        """
         pass
 
+
 class ORBFeatureExtractor(FeatureExtractor):
-    """
-    Feature extractor using ORB (Oriented FAST and Rotated BRIEF) algorithm
-    """
     def __init__(self, n_features=500):
         self.n_features = n_features
         self.orb = cv2.ORB_create(nfeatures=n_features)
@@ -52,10 +41,8 @@ class ORBFeatureExtractor(FeatureExtractor):
         keypoints, descriptors = self.orb.detectAndCompute(image, None)
         return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
+
 class SIFTFeatureExtractor(FeatureExtractor):
-    """
-    Feature extractor using SIFT (Scale-Invariant Feature Transform) algorithm
-    """
     def __init__(self, n_features=3000):
         self.n_features = n_features
         self.sift = cv2.SIFT_create(nfeatures=n_features)
@@ -64,10 +51,8 @@ class SIFTFeatureExtractor(FeatureExtractor):
         keypoints, descriptors = self.sift.detectAndCompute(image, None)
         return keypoints, descriptors
 
+
 class AKAZEFeatureExtractor(FeatureExtractor):
-    """
-    Feature extractor using AKAZE (Accelerated-KAZE) algorithm
-    """
     def __init__(self, n_features=500):
         self.n_features = n_features
         self.akaze = cv2.AKAZE_create()
@@ -76,24 +61,16 @@ class AKAZEFeatureExtractor(FeatureExtractor):
         keypoints, descriptors = self.akaze.detectAndCompute(image, None)
         return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
-
-#Match Features between Left and Right Images
+# abstract feature matcher class
+# makes it easier to test different feature matchers
 class FeatureMatcher(ABC):
-    """
-    Abstract class for feature matching
-    """
     @abstractmethod
     def match_features(self, left_descriptors, right_descriptors):
-        """
-        Take keypoints and descriptors from left and right images and return matches
-        """
         pass
 
 
 class BFMatcher(FeatureMatcher):
-    """
-    Feature matcher using Brute-Force algorithm
-    """
+    # brute force matcher
     def __init__(self):
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     
@@ -103,9 +80,6 @@ class BFMatcher(FeatureMatcher):
 
 
 class FLANNMatcher(FeatureMatcher):
-    """
-    Feature matcher using FLANN (Fast Library for Approximate Nearest Neighbors) algorithm
-    """
     def __init__(self, trees=10, checks=100):
         self.flann = cv2.FlannBasedMatcher(dict(algorithm=1, trees=10), dict(checks=60))
     
@@ -116,24 +90,15 @@ class FLANNMatcher(FeatureMatcher):
         return matches
 
 
-# Filter matches to remove outliers
+# abstract class for matched feature filtering
 class FeatureMatchFilter(ABC):
-    """
-    Abstract class for feature match filtering
-    """
     @abstractmethod
     def filter_matches(self, matches, keypoints_left=None, keypoints_right=None):
-        """
-        Take matches and return filtered matches
-        """
         pass
 
 
 class RatioTestFilter(FeatureMatchFilter):
-    """
-    Filter matches using Lowe's ratio test
-    """
-
+    # Lowe's ratio test
     def __init__(self, ratio=0.5):
         self.ratio = ratio
     
@@ -146,9 +111,6 @@ class RatioTestFilter(FeatureMatchFilter):
 
 
 class RANSACFilter(FeatureMatchFilter):
-    """
-    Filter matches using RANSAC (Random Sample Consensus) algorithm
-    """
     def __init__(self, min_matches=8, reproj_thresh=4.0):
         self.min_matches = min_matches
         self.reproj_thresh = reproj_thresh
@@ -166,9 +128,8 @@ class RANSACFilter(FeatureMatchFilter):
 
 class StereoProjection:
     def __init__(self, yaml_file, distortion=None):
-        """
-        Initializes the StereoProjection class by loading camera intrinsics and extrinsics from a YAML file.
-        """
+        # Initializes the StereoProjection class by loading camera intrinsics and
+        # extrinsics from the YAML calibration file.
         self.yaml_file = yaml_file
         self.K0 = None  # Left camera intrinsic matrix
         self.K1 = None  # Right camera intrinsic matrix
