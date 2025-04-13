@@ -46,7 +46,7 @@ with open(os.path.join(dataset_path,'right_images.txt')) as f:
 if len(left_images) != len(right_images):
     raise ValueError("The number of left and right images do not match.")
 
-START_FRAME = 500
+START_FRAME = 200
 
 first_valid_index = next(i for i, ts in enumerate(image_timestamps) if ts >= first_gt_time)
 image_timestamps = image_timestamps[first_valid_index+START_FRAME:]
