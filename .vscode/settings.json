@@ -128,7 +128,8 @@
     "latex-workshop.latex.outDir": "output",
     "editor.wordWrap": "on",
     "cSpell.words": [
-        "Kalman"
+        "Kalman",
+        "Madgwick"
     ],
     "cmake.ignoreCMakeListsMissing": true,
     "python.terminal.activateEnvironment": true,
