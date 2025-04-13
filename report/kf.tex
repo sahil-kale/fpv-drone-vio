@@ -81,33 +81,29 @@ The predicted uncertainty of the states are also recomputed at the end of the pr
 
 \subsubsection{Update}
 The update phase of the Kalman filter is where the measurements of the sensor are incorporated into the state estimate. The predicted state is compared to another measurement (in this case, the VIO output) to fuse the data together. 
-The Kalman gain, or K Matrix, determines the weight of the predicted state vs the model state. It is calculated using the error covariance matrix, the measurement noise matrix and the output state matrix. 
-At each update step, the matrix is updated for the new gain, essentially recording which state should be trusted more, model or actual.
-
-The states are then updated using the Kalman Gain and the outputs of the camera and prediction.
+The Kalman gain how much of a correction needs to be applied to the states given the prediction and sensor measurements. It is calculated using the error covariance matrix, the measurement noise matrix and the output state matrix. 
+At each update step, the matrix is updated for the new gain. The states are then updated using the Kalman Gain and the outputs of the camera and prediction.
 
 \begin{eqnarray*}
-    K_k = P_{k|k-1} C^T * (C P_{k|k-1} C^T + R)^{-1} \\[1em]
+    K_k = P_{k|k-1} C^T (C P_{k|k-1} C^T + R)^{-1} \\[1em]
     P_{k|k} = (I - K_k C) P_{k|k-1}
 \end{eqnarray*}
 
 The estimate is also updated using the states from the predict step and the states of the sensor, in our case being the camera. 
-The estimated measurements are denoted with $\hat{x}$, whereas the sensor measurements are denoted regularly. 
+The estimated measurements are denoted with $\hat{x}$. 
 \begin{equation*}
     \hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k (z_k - H \hat{x}_{k|k-1})
 \end{equation*}
 
 \subsubsection{Implementation}
 
-The Kalman filter was implemented in Python by developing a class which encapsulated the predict and update steps. 
+The Kalman filter was implemented in Python by developing a class which encapsulated the predict and update steps. The class is instantiated with initial state, $\delta t$, initial covariance, process noise, measurement noise, and the number of states. 
 
-The class, named ImuKalmanFilter, was designed to be used with the IMU and camera data. The class is instantiated with initial state, dt, initial covariance, process noise, measurement noise, the number of states, and the gyro bias. 
+The class consists of two functions -- update, and predict.\newline
 
-The class consists of two functions -- update, and predict. 
+The predict function takes the output of the Madgwick filter - the orientation of the drone in its own frame of reference. These are then converted to world frame using rotation matrices Using the previous state velocities, the current position of the drone in the world frame is updated. Furthermore, the velocities are also updated using the most recent acceleration data. Finally, the state error covariance matrix, P is updated in the predict step. \newline
 
-The update function takes the output of the Madgwick filter - the acceleration and angular velocities in drone frame. These are then converted to world frame using rotation matrices Using the previous state velocities, the current position of the drone in the world frame is updated. Furthermore, the velocities are also updated using the most recent acceleration data. Finally, the covariance matrix, P is updated in the predict step.
-
-The predict function takes the camera data and the current state of the drone. The camera data is used to update the Kalman gain, which is then used to update the state of the drone. The covariance matrix is also updated in this step.
+The update function takes the camera data and the current state of the drone. The camera data is used to calculate the Kalman gain, which is then used to update the estimated state of the drone. The error covariance matrix, P, is also updated in this step.\newline
 
 The linear algebra operations and definition of the matrices are done using the Numpy library. The rotation matrices are defined using the Euler angles from the Madgwick filter. 
 
