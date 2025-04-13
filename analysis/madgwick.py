@@ -53,7 +53,7 @@ class MadgwickFilter:
         acc_normalized = accel_data / np.linalg.norm(accel_data)
         # assume the d vector is [0, 0, 1], which corrosponds to a predefined reference in the earth frame aligning with gravity
         qw, qx, qy, qz = self.q.reshape(-1)
-        # equation 25: https://courses.cs.washington.edu/courses/cse466/14au/labs/l4/madgwick_internal_report.pdf, use the simplifcation of d
+        # equation 25: https://courses.cs.washington.edu/courses/cse466/14au/labs/l4/madgwick_internal_report.pdf, use the simplification of d
         f = np.array([
             [2*(qx*qz - qw*qy) - acc_normalized[0]],
             [2*(qw*qx + qy*qz) - acc_normalized[1]],

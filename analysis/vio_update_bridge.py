@@ -2,7 +2,7 @@ import numpy as np
 from interface import *
 from scipy.spatial.transform import Rotation as R
 
-def euler_to_rotation_matrix(euler_vec, order='xyz'): #TODO: This order needs to be checked.
+def euler_to_rotation_matrix(euler_vec, order='xyz'): 
     """
     Converts Euler angles to a rotation matrix.
     
@@ -27,12 +27,8 @@ class VIOTranslator:
         rotation_matrix = self.get_prev_state_rotation_matrix()
 
         # Rotate the relative translation into the world frame
-        rotated_translation = rotation_matrix @ translation_vector #TODO: Check if this should be inverted
+        rotated_translation = rotation_matrix @ translation_vector
         
-        # delta_state = np.concatenate((rotated_translation, np.zeros(6)))
-        # assert delta_state.shape == (9,), "State vector must be of shape (9,)" #I changed it to 9 because it is 9 now? not sure
-        # Rotate the relative translation into the world frame
-
         self.initial_state.state[:2] += rotated_translation[:2]
         self.initial_state.state[2] += rotated_translation[2]*0.3
         assert self.initial_state.state.shape == (9,), "State vector must be of shape (9,)"
@@ -48,7 +44,3 @@ class VIOTranslator:
     
     def update_state_estimate(self, state: EKFDroneState):
         self.initial_state = state
-
-    # 1) after getting vision odom rel output, call integrate predicted state estimate
-    # 2) Need to feed in vision abs odom to ekf class
-    # 3) Call update state estimate to update translator state estimate with ekf estimate

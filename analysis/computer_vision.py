@@ -146,9 +146,7 @@ class StereoProjection:
         self.load_from_yaml()
 
     def load_from_yaml(self):
-        """
-        Reads the YAML calibration file and extracts the necessary camera parameters.
-        """
+        # loads the camera parameters from the yaml file
         with open(self.yaml_file, "r") as file:
             data = yaml.safe_load(file)
 
@@ -182,10 +180,6 @@ class StereoProjection:
         self.calculate_projection_matrices()
 
     def calculate_projection_matrices(self):
-        """
-        Calcluate parameters needed for undistortion using OpenCV functions.
-
-        """
         if self.distortion_type == "fisheye":
             # Use fisheye model for distortion correction
             self.dist_coeffs0 = np.array([self.dist_coeffs0[0], self.dist_coeffs0[1], self.dist_coeffs0[2], self.dist_coeffs0[3]])
@@ -215,16 +209,6 @@ class StereoProjection:
 
     #Function to calculate and visualize distortion correction
     def undistort_image(self, image, camera_matrix, dist_coeffs, camera="left"):
-        """
-        Undistort an image using the camera matrix and distortion coefficients.
-
-        :param image: The image to undistort.
-        :param camera_matrix: The camera matrix (intrinsic parameters).
-        :param dist_coeffs: The distortion coefficients.
-        :param use_fisheye: Boolean flag to indicate if fisheye model should be used.
-        :return: The undistorted image.
-        """
-
         if self.distortion_type == None:
             return image
         else:
@@ -242,15 +226,6 @@ class StereoProjection:
 
 
     def triangulate_points(self, points_left, points_right, use_normalized_projection=False):
-        """
-        Triangulates 3D points from corresponding feature points in left and right images.
-
-        :param points_left: Nx2 array of 2D points in the left image.
-        :param points_right: Nx2 array of 2D points in the right image.
-        :param use_normalized_projection: If True, use identity intrinsic matrix in projection.
-        :return: Nx3 array of triangulated 3D points in the left camera frame.
-        """
-
         points_left = np.array(points_left, dtype=np.float32)
         points_right = np.array(points_right, dtype=np.float32)
 
@@ -270,14 +245,6 @@ class StereoProjection:
 
 
     def plot_undistorted_points(self, points_left, points_right, image_left, image_right, axes=None, animate=False):
-        """
-        Plot the undistorted points on the undistorted images.
-
-        :param points_left: List of points (tuples) in the left image.
-        :param points_right: List of points (tuples) in the right image.
-        :param image_left: The undistorted left image.
-        :param image_right: The undistorted right image.
-        """
 
         #Find the undistorted images
         image_left_undistorted = self.undistort_image(image_left, self.K0, self.dist_coeffs0, camera="left")
@@ -327,9 +294,6 @@ class StereoProjection:
         return points_undistorted
 
     def print_matrices(self):
-        """
-        Prints the intrinsic and projection matrices.
-        """
         print("\nIntrinsic Matrix (K0 - Left Camera):\n", self.K0)
         print("\nIntrinsic Matrix (K1 - Right Camera):\n", self.K1)
         print("\nRotation Matrix (R - Left to Right Camera):\n", self.R)
@@ -339,16 +303,6 @@ class StereoProjection:
 
 
 def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=False):
-    """
-    Display two images side by side with keypoints plotted on them.
-
-    :param image1: The first image on which to draw keypoints.
-    :param keypoints1: Keypoints detected in the first image.
-    :param image2: The second image on which to draw keypoints.
-    :param keypoints2: Keypoints detected in the second image.
-    :param draw_rich_keypoints: Whether to draw rich keypoints (with size and orientation).
-    """
-    # Draw keypoints on the first image
     if draw_rich_keypoints:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
@@ -356,8 +310,6 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
     else:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
                                                   color=(0, 255, 0))  # Green keypoints
-
-    # Draw keypoints on the second image
     if draw_rich_keypoints:
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
@@ -366,39 +318,32 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
                                                   color=(0, 255, 0))  # Green keypoints
 
-    # Create a subplot to show the two images side by side
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-    # Plot the first image with keypoints
     axes[0].imshow(image_with_keypoints1, cmap="gray")
     axes[0].set_title("Image 1 with Keypoints")
     axes[0].axis("off")
 
-    # Plot the second image with keypoints
     axes[1].imshow(image_with_keypoints2, cmap="gray")
     axes[1].set_title("Image 2 with Keypoints")
     axes[1].axis("off")
 
-    # Display the plot
     plt.tight_layout()
     plt.show()
 
 def animate_keypoints(image1, keypoints1, image2, keypoints2, axes, draw_rich_keypoints=False):
-    # Draw keypoints on the first image
     image_with_keypoints1 = cv2.drawKeypoints(
         image1, keypoints1, None,
         flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
         color=(0, 255, 0)
     )
 
-    # Draw keypoints on the second image
     image_with_keypoints2 = cv2.drawKeypoints(
         image2, keypoints2, None,
         flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
         color=(0, 255, 0)
     )
 
-    # **Check if images exist, otherwise initialize them**
     if not hasattr(axes[0], "img"):
         axes[0].img = axes[0].imshow(image_with_keypoints1, cmap="gray")
         axes[1].img = axes[1].imshow(image_with_keypoints2, cmap="gray")
@@ -410,77 +355,54 @@ def animate_keypoints(image1, keypoints1, image2, keypoints2, axes, draw_rich_ke
     plt.pause(0.05)
 
 def show_points(image1, points1, image2, points2, point_cloud):
-    """
-    Display two images side by side with points plotted on them, and a 3D point cloud.
-
-    :param image1: The first image on which to draw points.
-    :param points1: List of points (tuples) for the first image.
-    :param image2: The second image on which to draw points.
-    :param points2: List of points (tuples) for the second image.
-    :param point_cloud: A list or array of 3D points (tuples or np.array).
-    """
-    # Copy images to avoid modifying the original
     image_with_points1 = image1.copy()
     image_with_points2 = image2.copy()
     
-    # Combine points with point cloud and sort by x-coordinate in left image
-    combined_data = [(point[0], point, points2[i], point_cloud[i]) 
+    combined_data = [(point[0], point, points2[i], point_cloud[i])
                     for i, point in enumerate(points1)]
     combined_data.sort(key=lambda x: float(x[0]))  # Sort by x-coordinate as float
     
-    # Unpack the sorted data
     sorted_points1 = [data[1] for data in combined_data]
     sorted_points2 = [data[2] for data in combined_data]
     sorted_point_cloud = np.array([data[3] for data in combined_data])
     
-    # Generate a colormap with unique colors for each point
     num_points = len(sorted_points1)
     cmap = plt.cm.get_cmap('hsv', num_points)
     colors = [cmap(i)[:3] for i in range(num_points)]
     
-    # Convert colors from 0-1 range to 0-255 range for OpenCV
     opencv_colors = [(int(b*255), int(g*255), int(r*255)) for r, g, b in colors]
     
-    # Draw points on the first image with unique colors
     for i, point in enumerate(sorted_points1):
         x, y = point
         color = opencv_colors[i]
         cv2.circle(image_with_points1, (int(x), int(y)), 3, color, -1)
     
-    # Draw points on the second image with the same colors
     for i, point in enumerate(sorted_points2):
         x, y = point
         color = opencv_colors[i]
         cv2.circle(image_with_points2, (int(x), int(y)), 3, color, -1)
     
-    # Create a subplot to show the two images side by side, and a 3D plot for the point cloud
     fig = plt.figure(figsize=(18, 6))
     
-    # Plot the first image with points
     ax1 = fig.add_subplot(131)
     ax1.imshow(cv2.cvtColor(image_with_points1, cv2.COLOR_BGR2RGB))
     ax1.set_title("Image 1 with Points")
     ax1.axis("off")
     
-    # Plot the second image with points
     ax2 = fig.add_subplot(132)
     ax2.imshow(cv2.cvtColor(image_with_points2, cv2.COLOR_BGR2RGB))
     ax2.set_title("Image 2 with Points")
     ax2.axis("off")
     
-    # Plot the 3D point cloud with matching colors
     ax3 = fig.add_subplot(133, projection='3d')
     
-    # Extract X, Y, Z coordinates from the sorted point cloud
     X = sorted_point_cloud[:, 0]
     Y = sorted_point_cloud[:, 1]
     Z = sorted_point_cloud[:, 2]
     
-    # Plot each point with its corresponding color
     for i in range(len(X)):
         ax3.scatter(X[i], Y[i], Z[i], c=[colors[i]], marker='o', s=10)
     
-    # Plot the origin (0, 0, 0) as a unique point
     ax3.scatter(0, 0, 0, c='k', marker='^', s=100, label='Origin')  # Black triangle
 
     #visualize camera reference frame
@@ -488,38 +410,24 @@ def show_points(image1, points1, image2, points2, point_cloud):
     ax3.plot([0, 0], [0, 100], [0, 0], c='g')
     ax3.plot([0, 0], [0, 0], [0, 100], c='k')
     
-    # Set labels for the 3D plot
     ax3.set_xlabel('X')
     ax3.set_ylabel('Y')
     ax3.set_zlabel('Z')
     ax3.set_title("3D Point Cloud")
     
-    # Determine axis limits dynamically
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
     ax3.set_xlim(0 - 20, 0 + 20)
     ax3.set_ylim(0 - 20, 0 + 20)
     ax3.set_zlim(0 - 20, 0 + 20)
     
-    # Display the plot
     plt.tight_layout()
     plt.show()
 
 
 def show_matches(image1, image2, matches, keypoints1, keypoints2):
-    """
-    Show the matching keypoints between two images using the matches list.
-
-    :param image1: The first image.
-    :param image2: The second image.
-    :param matches: List of good matches (from FLANN or other matchers).
-    :param keypoints1: Keypoints detected in the first image.
-    :param keypoints2: Keypoints detected in the second image.
-    """
-    # Draw matches on the images
     image_with_matches = cv2.drawMatches(image1, keypoints1, image2, keypoints2, matches, None,
                                          flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
 
-    # Show the image using Matplotlib
     plt.figure(figsize=(10, 8))
     plt.imshow(image_with_matches)
     plt.title("Matches between Image 1 and Image 2")
@@ -538,15 +446,12 @@ def extract_points_from_matches(filtered_matches, keypoints_left, keypoints_righ
 
 
 def plot_3d_point_cloud(points_3d):
-    """
-    Plot the 3D points using matplotlib.
-    """
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     ax.scatter(points_3d[:, 0], points_3d[:, 1], points_3d[:, 2], c='r', marker='o')
-    # Plot the origin (0, 0, 0) as a unique point
-    ax.scatter(0, 0, 0, c='b', marker='^', s=100, label='Origin')  # Blue triangle, size 100
+    # plot the origin
+    ax.scatter(0, 0, 0, c='b', marker='^', s=100, label='Origin')
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -557,13 +462,6 @@ def plot_3d_point_cloud(points_3d):
 
 #Find the transformation matrix between the two frames using the two point clouds
 def find_transformation(dst_points, src_points):
-    """
-    Find the transformation matrix between two sets of 3D points using SVD.
-    
-    :param src_points: Source points (Nx3 array)
-    :param dst_points: Destination points (Nx3 array)
-    :return: 4x4 transformation matrix
-    """
     # Filter out points that are behind the camera
     valid_indices = (src_points[:, 2] > 0) & (dst_points[:, 2] > 0)
     src_points = src_points[valid_indices]
@@ -582,15 +480,14 @@ def find_transformation(dst_points, src_points):
     U, _, Vt = np.linalg.svd(H)
     R = Vt.T @ U.T
     
-    # Ensure proper rotation matrix (handle reflection case)
+    # handle reflection case
     if np.linalg.det(R) < 0:
         Vt[-1,:] *= -1
         R = Vt.T @ U.T
     
-    # Calculate translation
+    # find translation
     t = dst_centroid - R @ src_centroid
     
-    # Create 4x4 transformation matrix
     T = np.eye(4)
     T[:3,:3] = R
     T[:3,3] = t
@@ -599,17 +496,6 @@ def find_transformation(dst_points, src_points):
 
 #Iterative function for finding transformation robust to outliers
 def find_transformation_iterative(dst_points, src_points, threshold=0.1, max_iterations=5, tol=1e-6):
-    """
-    Iteratively finds the transformation matrix between two sets of 3D points using weighted least squares.
-
-    :param src_points: Source points (Nx3 array)
-    :param dst_points: Destination points (Nx3 array)
-    :param threshold: Distance threshold for weighting points
-    :param max_iterations: Max iterations for iterative refinement
-    :param tol: Convergence threshold based on transformation difference
-    :return: 4x4 transformation matrix
-    """
-    # Initialize transformation matrix
     T = np.eye(4)
     src_points_homogeneous = np.hstack((src_points, np.ones((src_points.shape[0], 1))))
     
@@ -671,11 +557,13 @@ def update_camera_pose(T_relative):
     T_world_to_current = T_world_to_current @ T_relative  # Matrix multiplication
     return T_world_to_current
 
-T_cam02imu0=np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
+
+T_cam02imu0 = np.array([[-0.02822879, 0.01440125, 0.99949774, 0.00110212],
             [-0.99960149, -0.00041887, -0.02822568, 0.02170142],
             [ 0.00001218, -0.99989621, 0.01440734, -0.00005928],
             [ 0., 0., 0., 1. ]])
-T_cam2drone =T_cam02imu0
+
+T_cam2drone = T_cam02imu0
 
 class FeatureData:
     def __init__(self, filtered_matches, left_keypoints, left_descriptors, right_keypoints, right_descriptors):
@@ -687,15 +575,6 @@ class FeatureData:
 
 
 class VisionRelativeOdometryCalculator:
-    """
-    Pass this a stream of VisionInputFrames and it will calculate the relative odometry between each pair of frames.
-    Notes:
-    * Need to keep track previous previous L&R filtered matches
-    * Need to keep track of previous previous L&R keypoints
-    * Need to keep track of previous previous L descriptors (might as well keep track of previous R descriptors as well)
-    * 
-    """
-    
     def __init__(self, initial_camera_input:interface.VisionInputFrame, feature_extractor:FeatureExtractor, feature_matcher:FeatureMatcher, feature_match_filter:FeatureMatchFilter, alpha=1, transformation_threshold=0.1):
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
@@ -853,9 +732,6 @@ if __name__ == "__main__":
     left1_gs, right1_gs = preprocess_images(left1, right1)
     left2_gs, right2_gs = preprocess_images(left2, right2)
 
-    #Comment for navigation - will delete
-    # ORB doesn't work without transforming the uint8 descriptors to uint32
-    # SIFT and AKAZE return uint32s by default
     extractor = SIFTFeatureExtractor()
 
     l1_keypoints, l1_descriptors = extractor.extract_features(left1_gs)
@@ -901,8 +777,6 @@ if __name__ == "__main__":
     filtered_matches1 = consistent_matches1
     filtered_matches2 = consistent_matches2
 
-    # show_matches(left1, right1, filtered_matches1, l1_keypoints, r1_keypoints)
-
     StereoPair = StereoProjection("analysis/camchain-..indoor_forward_calib_snapdragon_cam.yaml", distortion="fisheye")
 
     pl1, pr1 = extract_points_from_matches(consistent_matches1, l1_keypoints, r1_keypoints)
@@ -911,7 +785,6 @@ if __name__ == "__main__":
     pl2, pr2 = extract_points_from_matches(consistent_matches2, l2_keypoints, r2_keypoints)
     points2 = StereoPair.triangulate_points(np.array(pl2), np.array(pr2), use_normalized_projection=True)
 
-    #print("plotting undistorted points")
     StereoPair.plot_undistorted_points(pl1, pr1, left1, right1)
     
     # Find transformation between frame 1 and frame 2
@@ -941,8 +814,8 @@ if __name__ == "__main__":
     [-0.7758406136151782, -0.6307366795317234, -0.015575087753203145, 0.246270702230251],
     [-0.004341288707415834, -0.0193486086523643, 0.9998033729466893, -0.880807258137499],
     [0.0, 0.0, 0.0, 1.0]])
-    
-    
+
+    # plots the point clouds
     show_points(left1, pl1, right1, pr1, points1)
     show_points(left2, pl2, right2, pr2, points2)
 

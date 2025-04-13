@@ -1,0 +1,8 @@
+\documentclass[bare_jrnl_transmag]{subfiles}
+\begin{document}
+
+This report entails the development of a state estimation system for drone pose and position, using measurements from an IMU and a camera. The overall state estimator was based off a Kalman filter. The predict step used a Madgwick filter to get a filtered orientation of the drone, which was then used to rotate the IMU acceleration data into world frame. The camera sensors were used to perform visual inertial odometry and get an estimate of the drone position. The camera's position estimate was used as a measurement update for the Kalman filter. The Kalman filter was tuned using the process and measurement noise covariance matrices, which were iterated upon to find the best fit. The final RMSE of the Kalman filter was [5.02, 3.17, 4.30] for the x, y and z axes respectively, when tested on a validation dataset. \newline
+
+Further recommendations to improve the overall VIO and Kalman filter performance include investigating the position drift in the VIO, causing the overall state estimate to diverge over time. Another major point of improvement includes using various profiling tools to identify bottlenecks in the code and algorithm. This will help optimize the performance and allow for better real-time performance of the system. This will be particularly useful as the system is deployed on a drone, where low-latency and real-time performance is critical.
+
+\end{document}

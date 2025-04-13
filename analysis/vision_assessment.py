@@ -84,29 +84,22 @@ def plot_trajectory(trajectory, ax, color='r', triad_scale=0.1, show_triads=Fals
             marker='o')
     
     if show_triads:
-        # Plot orientation triads at every tenth position
         for i, T in enumerate(trajectory):
             if i % 10 == 0:  # Only plot every tenth triad
-                # Extract position
                 pos = T[0:3, 3]
                 
-                # Extract rotation matrix (each column is a direction vector)
                 R = T[0:3, 0:3]
                 
-                # Use 1/3 of the original triad scale
                 reduced_scale = triad_scale / 3
                 
-                # Draw x-axis (red)
                 ax.quiver(pos[0], pos[1], pos[2],
                         R[0, 0], R[1, 0], R[2, 0],
                         color='r', length=reduced_scale)
                 
-                # Draw y-axis (blue)
                 ax.quiver(pos[0], pos[1], pos[2],
                         R[0, 1], R[1, 1], R[2, 1],
                         color='b', length=reduced_scale)
                 
-                # Draw z-axis (black)
                 ax.quiver(pos[0], pos[1], pos[2],
                         R[0, 2], R[1, 2], R[2, 2],
                         color='k', length=reduced_scale)
@@ -139,18 +132,6 @@ def get_delta_residuals(estimated_trajectory, ground_truth_trajectory):
     return position_residuals, rotation_residuals, ground_truth_deltas
 
 def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_deltas, eps=1e-3):
-    """
-    Scale residuals by the magnitude of the ground truth delta.
-    
-    For translation, we scale by the norm of the ground truth translation.
-    For rotation, we convert the ground truth rotation to a Rodrigues vector and scale by its norm (i.e. the angle).
-    
-    :param position_residuals: Nx3 array of translation errors.
-    :param rotation_residuals: Nx3 array of rotation errors (in Rodrigues form).
-    :param ground_truth_deltas: List/array of ground truth delta matrices.
-    :param eps: A small value to avoid division by zero.
-    :return: Two arrays: scaled translation errors and scaled rotation errors.
-    """
     mag_position_residuals = np.linalg.norm(position_residuals, axis=1)
     mag_rotation_residuals = np.linalg.norm(rotation_residuals, axis=1)
     
@@ -158,25 +139,25 @@ def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_de
     scaled_rotation_residuals = []
     
     for i in range(len(ground_truth_deltas)):
-        # For translation: use the norm of the ground truth translation vector.
+        # use the norm of the ground truth translation vector
         gt_trans = ground_truth_deltas[i][:3, 3]
         translation_scale = np.linalg.norm(gt_trans)
         if translation_scale < eps:
-            translation_scale = eps  # Avoid division by zero if there is negligible motion.
+            translation_scale = eps
         scaled_position_residuals.append(position_residuals[i] / translation_scale)
         
-        # For rotation: convert the ground truth rotation to a Rodrigues vector.
+        # convert the ground truth rotation to a rodrigues vector
         gt_rot = ground_truth_deltas[i][:3, :3]
         gt_rodrigues, _ = cv2.Rodrigues(gt_rot)
         rotation_scale = np.linalg.norm(gt_rodrigues)
         if rotation_scale < eps:
-            rotation_scale = eps  # Avoid division by zero.
+            rotation_scale = eps
         scaled_rotation_residuals.append(rotation_residuals[i] / rotation_scale)
         
     return np.array(scaled_position_residuals), np.array(scaled_rotation_residuals)
 
 
-#Frame on which we want to start evaluating\
+#Frame on which we want to start evaluating
 start_frame = 100
 
 left_images = left_images[start_frame:]
@@ -211,23 +192,21 @@ for i, (left_image, right_image) in enumerate(zip(left_images, right_images), st
     # Calculate the relative odometry between the previous and new input frame
     relative_transformation = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
 
-    # Decompose the relative transformation into rotation (R_new) and translation (t_new)
+    # Decompose  relative transformation into rotation and translation
     R_new = relative_transformation[:3, :3]
     t_new = relative_transformation[:3, 3]
-
 
     filtered_R = R_new.copy()
     filtered_t = t_new.copy()
 
-    # Recompose the filtered relative transformation
     filtered_relative_transformation = np.eye(4)
     filtered_relative_transformation[:3, :3] = filtered_R
     filtered_relative_transformation[:3, 3] = filtered_t
 
-    # Apply the new transformation to the previous one to get the new world position
+    # apply the new transformation to the previous one to get the new world position
     estimated_transformations.append(estimated_transformations[-1] @ filtered_relative_transformation)
 
-#Plot the estimated v.s. ground truth trajectory
+#Plot the estimated vs ground truth trajectory
 fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111, projection='3d')
 ax.set_title('Camera trajectory')
@@ -238,23 +217,20 @@ ax.set_zlabel('Z')
 #Extract just translation
 est_positions = np.array([t[:3, 3] for t in estimated_transformations])
 
-# Compute the min, max, midpoint, and range along each axis
 mins = est_positions.min(axis=0)
 maxs = est_positions.max(axis=0)
 mid = est_positions[0]  # Use the first position as the midpoint
 max_range = (maxs - mins).max()
 
-# Set the axis limits uniformly so the plot is centered and scaled equally
 ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
 ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
 ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
 
-# Plot the trajectories (assuming plot_trajectory is defined)
 plot_trajectory(estimated_transformations, ax, color='purple', show_triads=True)
 plot_trajectory(ground_truth_transformations[:limit], ax, color='g', show_triads=True)
 ax.legend(['Estimated', 'Ground Truth'])
 ax.set_title('Camera trajectory')
-plt.show(block=False)  # Use block=False to prevent blocking
+plt.show(block=False)
 
 # Calculate the residuals
 position_residuals, rotation_residuals, ground_truth_deltas = \
@@ -314,7 +290,7 @@ ax1.set_xlabel('X')
 ax1.set_ylabel('Y')
 ax1.set_zlabel('Z')
 
-# Mark the origin with a black dot
+# Mark the origin
 ax1.scatter([0], [0], [0], color='black', s=50, marker='o')
 
 # Center around origin
@@ -337,7 +313,7 @@ ax2.set_ylabel('Y')
 ax2.set_zlabel('Z')
 
 
-# Mark the origin with a black dot
+# Mark the origin
 ax2.scatter([0], [0], [0], color='black', s=50, marker='o')
 
 # Center around origin
@@ -362,7 +338,7 @@ ax3.set_ylabel('Magnitude')
 ax3.legend()
 
 plt.tight_layout()
-plt.show(block=False)  # Use block=False to prevent blocking
+plt.show(block=False)
 
 # Calculate RMS errors
 pos_mean_x = np.mean(scaled_position_residuals[:, 0])
@@ -400,7 +376,7 @@ ax4.set_title('Scaled Position Residuals')
 ax4.set_xlabel('X')
 ax4.set_ylabel('Y')
 ax4.set_zlabel('Z')
-# Mark the origin with a black dot
+# Mark the origin
 ax4.scatter([0], [0], [0], color='black', s=50, marker='o')
 # Center around origin
 pos_max_range = max(
@@ -420,7 +396,7 @@ ax5.set_title('Scaled Rotation Residuals')
 ax5.set_xlabel('X')
 ax5.set_ylabel('Y')
 ax5.set_zlabel('Z')
-# Mark the origin with a black dot
+# Mark the origin
 ax5.scatter([0], [0], [0], color='black', s=50, marker='o')
 # Center around origin
 rot_max_range = max(

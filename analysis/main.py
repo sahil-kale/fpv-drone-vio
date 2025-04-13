@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from interface import *
-from imu_ekf import IMUKalmanFilter
+from imu_kf import IMUKalmanFilter
 from converting_quaternion import *
 from visualizer import Visualizer
 from util import conditional_breakpoint
@@ -77,6 +77,7 @@ if __name__ == '__main__':
     parser.add_argument('--visualizer-type', type=str, default="all", choices=VISUALIZER_TYPES, help='Type of visualizer to use')
     parser.add_argument('--save-visualizer', action='store_true', default=False, help='Whether to save the visualizer output')
     parser.add_argument('--dataset-path', type=str, default="dataset/vio_dataset_1/", help='Path to the dataset directory')
+    parser.add_argument('--dead-reckoning', action='store_true', default=False, help='Whether to use dead reckoning')
 
     args = parser.parse_args()
 
@@ -205,7 +206,9 @@ if __name__ == '__main__':
 
         #Integrate the vision data
 
-        if (imu_timestamp[i] >= image_timestamps[current_image_index]) and (args.visualizer_type != "orientation"):
+        should_run_vision = (imu_timestamp[i] >= image_timestamps[current_image_index]) and (args.visualizer_type != "orientation") and (args.dead_reckoning == False)
+
+        if should_run_vision:
             if current_image_index < len(vision_input_frames):
                 if current_image_index == 0:
                     # Use the first image to initialize the VIOTranslator
