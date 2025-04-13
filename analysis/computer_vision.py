@@ -146,9 +146,7 @@ class StereoProjection:
         self.load_from_yaml()
 
     def load_from_yaml(self):
-        """
-        Reads the YAML calibration file and extracts the necessary camera parameters.
-        """
+        # loads the camera parameters from the yaml file
         with open(self.yaml_file, "r") as file:
             data = yaml.safe_load(file)
 
@@ -182,10 +180,6 @@ class StereoProjection:
         self.calculate_projection_matrices()
 
     def calculate_projection_matrices(self):
-        """
-        Calcluate parameters needed for undistortion using OpenCV functions.
-
-        """
         if self.distortion_type == "fisheye":
             # Use fisheye model for distortion correction
             self.dist_coeffs0 = np.array([self.dist_coeffs0[0], self.dist_coeffs0[1], self.dist_coeffs0[2], self.dist_coeffs0[3]])
@@ -215,16 +209,6 @@ class StereoProjection:
 
     #Function to calculate and visualize distortion correction
     def undistort_image(self, image, camera_matrix, dist_coeffs, camera="left"):
-        """
-        Undistort an image using the camera matrix and distortion coefficients.
-
-        :param image: The image to undistort.
-        :param camera_matrix: The camera matrix (intrinsic parameters).
-        :param dist_coeffs: The distortion coefficients.
-        :param use_fisheye: Boolean flag to indicate if fisheye model should be used.
-        :return: The undistorted image.
-        """
-
         if self.distortion_type == None:
             return image
         else:
@@ -242,15 +226,6 @@ class StereoProjection:
 
 
     def triangulate_points(self, points_left, points_right, use_normalized_projection=False):
-        """
-        Triangulates 3D points from corresponding feature points in left and right images.
-
-        :param points_left: Nx2 array of 2D points in the left image.
-        :param points_right: Nx2 array of 2D points in the right image.
-        :param use_normalized_projection: If True, use identity intrinsic matrix in projection.
-        :return: Nx3 array of triangulated 3D points in the left camera frame.
-        """
-
         points_left = np.array(points_left, dtype=np.float32)
         points_right = np.array(points_right, dtype=np.float32)
 
@@ -270,14 +245,6 @@ class StereoProjection:
 
 
     def plot_undistorted_points(self, points_left, points_right, image_left, image_right, axes=None, animate=False):
-        """
-        Plot the undistorted points on the undistorted images.
-
-        :param points_left: List of points (tuples) in the left image.
-        :param points_right: List of points (tuples) in the right image.
-        :param image_left: The undistorted left image.
-        :param image_right: The undistorted right image.
-        """
 
         #Find the undistorted images
         image_left_undistorted = self.undistort_image(image_left, self.K0, self.dist_coeffs0, camera="left")
@@ -327,9 +294,6 @@ class StereoProjection:
         return points_undistorted
 
     def print_matrices(self):
-        """
-        Prints the intrinsic and projection matrices.
-        """
         print("\nIntrinsic Matrix (K0 - Left Camera):\n", self.K0)
         print("\nIntrinsic Matrix (K1 - Right Camera):\n", self.K1)
         print("\nRotation Matrix (R - Left to Right Camera):\n", self.R)
@@ -339,16 +303,6 @@ class StereoProjection:
 
 
 def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=False):
-    """
-    Display two images side by side with keypoints plotted on them.
-
-    :param image1: The first image on which to draw keypoints.
-    :param keypoints1: Keypoints detected in the first image.
-    :param image2: The second image on which to draw keypoints.
-    :param keypoints2: Keypoints detected in the second image.
-    :param draw_rich_keypoints: Whether to draw rich keypoints (with size and orientation).
-    """
-    # Draw keypoints on the first image
     if draw_rich_keypoints:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
@@ -356,8 +310,6 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
     else:
         image_with_keypoints1 = cv2.drawKeypoints(image1, keypoints1, None,
                                                   color=(0, 255, 0))  # Green keypoints
-
-    # Draw keypoints on the second image
     if draw_rich_keypoints:
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
                                                   flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
@@ -366,32 +318,26 @@ def show_keypoints(image1, keypoints1, image2, keypoints2, draw_rich_keypoints=F
         image_with_keypoints2 = cv2.drawKeypoints(image2, keypoints2, None,
                                                   color=(0, 255, 0))  # Green keypoints
 
-    # Create a subplot to show the two images side by side
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-    # Plot the first image with keypoints
     axes[0].imshow(image_with_keypoints1, cmap="gray")
     axes[0].set_title("Image 1 with Keypoints")
     axes[0].axis("off")
 
-    # Plot the second image with keypoints
     axes[1].imshow(image_with_keypoints2, cmap="gray")
     axes[1].set_title("Image 2 with Keypoints")
     axes[1].axis("off")
 
-    # Display the plot
     plt.tight_layout()
     plt.show()
 
 def animate_keypoints(image1, keypoints1, image2, keypoints2, axes, draw_rich_keypoints=False):
-    # Draw keypoints on the first image
     image_with_keypoints1 = cv2.drawKeypoints(
         image1, keypoints1, None,
         flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
         color=(0, 255, 0)
     )
 
-    # Draw keypoints on the second image
     image_with_keypoints2 = cv2.drawKeypoints(
         image2, keypoints2, None,
         flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS if draw_rich_keypoints else 0,
