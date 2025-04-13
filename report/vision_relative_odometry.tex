@@ -3,7 +3,7 @@
 
 \subsection{Vision Relative Odometry Implementation}
 
-Visual odometry involves extracting information from a series of images in order to estimate the pose and position of a camera. The dataset provides 30 frames per second stereo images allowing for 3D localization. \newline 
+Visual odometry involves extracting information from a series of images in order to estimate the pose and position of a camera. The dataset provides 30 frames per second stereo images allowing for 3D localization. OpenCV was used for the image extraction and processing \cite{opencv} \newline 
 
 Image features were first extracted from left and right pairs of images at a given time step. The Scale-Invariant Feature Transform (SIFT) feature extraction algorithm was used. The features of the two images were then matched to ensure the same points in both are compared. The Fast Library for Approximate Nearest Neighbors (FLANN) matcher was used to create feature matches between the two images.  Random sample consensus (RANSAC) was then used to filter these matches, only preserving the highest quality matches.  These steps were repeated for the previous time step, and the filtering was again applied, this time between the left images of the previous and current time step. This ensured that the two point clouds generated contain the same points such that the transformation between them can be found. \newline
 
