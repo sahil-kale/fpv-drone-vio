@@ -7,17 +7,24 @@ Before processing the acceleration in world frame, the acceleration from the IMU
 
 Once the world frame acceleration is calculated, the position and velocity states of drone can be computed, as shown in the equations below:
 
-\begin{align*}
-    \textbf{Velocity:} \\
-    v_x[k] &= v_x[k-1] + a_x[k] \cdot \Delta T \\
-    v_y[k] &= v_y[k-1] + a_y[k] \cdot \Delta T \\
-    v_z[k] &= v_z[k-1] + a_z[k] \cdot \Delta T
-\\
-    \textbf{Displacement:} \\
-    t_x[k] &= t_x[k-1] + v_x[k] \cdot \Delta T \\
-    t_y[k] &= t_y[k-1] + v_y[k] \cdot \Delta T \\
-    t_z[k] &= t_z[k-1] + v_z[k] \cdot \Delta T
-\end{align*}
+
+\noindent\textbf{Velocity:}
+\begin{equation*}
+\begin{aligned}
+v_x[k] &= v_x[k-1] + a_x[k] \cdot \Delta T \\
+v_y[k] &= v_y[k-1] + a_y[k] \cdot \Delta T \\
+v_z[k] &= v_z[k-1] + a_z[k] \cdot \Delta T
+\end{aligned}
+\end{equation*}
+
+\noindent\textbf{Displacement:}
+\begin{equation*}
+\begin{aligned}
+t_x[k] &= t_x[k-1] + v_x[k] \cdot \Delta T \\
+t_y[k] &= t_y[k-1] + v_y[k] \cdot \Delta T \\
+t_z[k] &= t_z[k-1] + v_z[k] \cdot \Delta T
+\end{aligned}
+\end{equation*}
     
 As a state-space representation, the dynamics of the system can be derived. The state vector and inputs are listed below:
 
@@ -38,7 +45,7 @@ As a state-space representation, the dynamics of the system can be derived. The 
     \end{bmatrix}$}}
 \end{align*}
 
-The matrices for thr dynamics of the system are as follows:
+The matrices for the dynamics of the system are as follows:
 
 \begin{align*}
     A &= 
