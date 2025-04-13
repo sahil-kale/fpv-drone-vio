@@ -1,10 +1,10 @@
 import interface
 import cv2
 import numpy as np
-import pandas as pd
 from abc import ABC, abstractmethod
 import yaml
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation, Slerp
 
 
 #Load left and right images
@@ -25,8 +25,8 @@ def preprocess_images(left_image, right_image):
     left_gray = cv2.bilateralFilter(left_gray, d=9, sigmaColor=75, sigmaSpace=75)
     right_gray = cv2.bilateralFilter(right_gray, d=9, sigmaColor=75, sigmaSpace=75)
 
-
     return left_gray, right_gray
+
 
 #Detect "keypoints" and compute descriptors using a feature detector
 class FeatureExtractor(ABC):
@@ -76,6 +76,7 @@ class AKAZEFeatureExtractor(FeatureExtractor):
         keypoints, descriptors = self.akaze.detectAndCompute(image, None)
         return keypoints, descriptors.astype(np.float32)  # Ensure descriptors are float32 for matching
 
+
 #Match Features between Left and Right Images
 class FeatureMatcher(ABC):
     """
@@ -88,6 +89,7 @@ class FeatureMatcher(ABC):
         """
         pass
 
+
 class BFMatcher(FeatureMatcher):
     """
     Feature matcher using Brute-Force algorithm
@@ -98,6 +100,7 @@ class BFMatcher(FeatureMatcher):
     def match_features(self, left_descriptors, right_descriptors):
         matches = self.bf.match(left_descriptors, right_descriptors)
         return matches
+
 
 class FLANNMatcher(FeatureMatcher):
     """
@@ -113,7 +116,7 @@ class FLANNMatcher(FeatureMatcher):
         return matches
 
 
-#Filter matches to remove outliers
+# Filter matches to remove outliers
 class FeatureMatchFilter(ABC):
     """
     Abstract class for feature match filtering
@@ -124,6 +127,7 @@ class FeatureMatchFilter(ABC):
         Take matches and return filtered matches
         """
         pass
+
 
 class RatioTestFilter(FeatureMatchFilter):
     """
@@ -139,6 +143,7 @@ class RatioTestFilter(FeatureMatchFilter):
             if m.distance < self.ratio * n.distance:
                 filtered_matches.append(m)
         return filtered_matches
+
 
 class RANSACFilter(FeatureMatchFilter):
     """
@@ -240,10 +245,12 @@ class StereoProjection:
 
             self.K0_new, _ = cv2.getOptimalNewCameraMatrix(self.K0, self.dist_coeffs0, (self.resX0, self.resY0), 1, (self.resX0, self.resY0))
             self.K1_new, _ = cv2.getOptimalNewCameraMatrix(self.K1, self.dist_coeffs1, (self.resX1, self.resY1), 1, (self.resX1, self.resY1))
-            #Don't use distortion
+
         else:
+            # Don't use distortion
             self.P0 = self.K0 @ np.hstack((np.eye(3), np.zeros((3, 1))))  # P0 = K0 * [I | 0]
             self.P1 = self.K1 @ np.hstack((self.R, self.t))  # P1 = K1 * [R | t]
+
 
     #Function to calculate and visualize distortion correction
     def undistort_image(self, image, camera_matrix, dist_coeffs, camera="left"):
@@ -282,8 +289,6 @@ class StereoProjection:
         :param use_normalized_projection: If True, use identity intrinsic matrix in projection.
         :return: Nx3 array of triangulated 3D points in the left camera frame.
         """
-        # points_left = self.undistort_points(points_left, camera="left")
-        # points_right = self.undistort_points(points_right, camera="right")
 
         points_left = np.array(points_left, dtype=np.float32)
         points_right = np.array(points_right, dtype=np.float32)
@@ -719,7 +724,6 @@ class FeatureData:
         self.right_keypoints = right_keypoints
         self.right_descriptors = right_descriptors
 
-from scipy.spatial.transform import Rotation, Slerp
 
 class VisionRelativeOdometryCalculator:
     """
