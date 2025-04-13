@@ -9,13 +9,13 @@ import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, choices=["training", "testing"], default="training", help='Path to the dataset directory [training, testing]')
+parser.add_argument('--dataset', type=str, choices=["training", "testing"], default="testing", help='Path to the dataset directory [training, testing]')
 
 args = parser.parse_args()
 
 dataset_path = r'dataset/vio_dataset_1'
 if args.dataset == "testing":
-    dataset_path = r'dataset/indoor_forward_9_snapdragon_with_gt'
+    dataset_path = r'dataset/indoor_forward_6_snapdragon_with_gt'
 
 # Read ground truth file and get the first timestamp
 with open(os.path.join(dataset_path, 'homogenous_ground_truth_converted_by_us.txt')) as f:
@@ -157,12 +157,6 @@ def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_de
     return np.array(scaled_position_residuals), np.array(scaled_rotation_residuals)
 
 
-#Frame on which we want to start evaluating
-start_frame = 100
-
-left_images = left_images[start_frame:]
-right_images = right_images[start_frame:]
-ground_truth_transformations = ground_truth_transformations[start_frame:]
 
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame

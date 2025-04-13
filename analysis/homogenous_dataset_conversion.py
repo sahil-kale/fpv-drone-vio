@@ -9,12 +9,12 @@ parser.add_argument('--dataset', type=str, choices=["training", "testing"], defa
 #Load the file
 args = parser.parse_args()
 
-dataset_path = r'dataset/indoor_forward_9_snapdragon_with_gt'
+dataset_path = r'dataset/indoor_forward_6_snapdragon_with_gt'
 if args.dataset == "training":
     dataset_path = r'dataset/vio_dataset_1'
 
 #load the file
-data = np.loadtxt(os.path.join(dataset_path, 'groundtruth.txt'))
+data = np.loadtxt(os.path.join(dataset_path, 'groundtruth.txt'))[:, 1:]
 
 timestamp = data[:, 0]
 t = data[:, 1:4]
