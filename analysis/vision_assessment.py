@@ -181,7 +181,7 @@ def get_scaled_residuals(position_residuals, rotation_residuals, ground_truth_de
 
 
 #Frame on which we want to start evaluating\
-start_frame = 500
+start_frame = 100
 
 left_images = left_images[start_frame:]
 right_images = right_images[start_frame:]
@@ -190,128 +190,6 @@ ground_truth_transformations = ground_truth_transformations[start_frame:]
 #Initialize a VisionOdometryCalculator using the first pair of images
 #this will be used to track the camera pose in the world frame
 initial_frame = VisionInputFrame(left_images[0], right_images[0], timestamp=image_timestamps[0])
-
-
-### Start of tuning optimization code.
-# def get_search_ranges(center_val, delta, min_val, max_val):
-#     return sorted(set([
-#         max(min_val, center_val - delta),
-#         center_val,
-#         min(max_val, center_val + delta)
-#     ]))
-
-# feature_extractors = [
-#     ("ORB", mycv.ORBFeatureExtractor),
-#     ("SIFT", mycv.SIFTFeatureExtractor),
-#     ("AKAZE", mycv.AKAZEFeatureExtractor)
-# ]
-
-# initial_n_features = [1000, 2000, 3000]
-# initial_trees = [4, 6, 8]
-# initial_checks = [50, 100, 150]
-# initial_reproj = [0.5, 1.0, 1.5]
-# initial_thresh = [0.05, 0.1, 0.15]
-
-# best_score = float("inf")
-# best_config = None
-# # Score definition
-# def compute_score(pos_res, rot_res):
-#     return (np.var(pos_res) + np.var(rot_res)) + 10 * (np.abs(np.mean(pos_res)) + np.abs(np.mean(rot_res)))
-
-# # Run evaluation on grid
-
-# from multiprocessing import Pool, cpu_count
-# from itertools import product
-
-# Local gradient descent using local search around each parameter
-# searched_configs = set()
-
-# def process_config(config_key_and_class):
-#     config_key, feat_class = config_key_and_class
-#     feat_name, n_feat, trees, checks, reproj, thresh = config_key
-#     logging.info(f"Processing config: {config_key}")
-
-#     try:
-#         odometry_calculator = mycv.VisionRelativeOdometryCalculator(
-#             initial_camera_input=initial_frame,
-#             feature_extractor=feat_class(n_features=n_feat),
-#             feature_matcher=mycv.FLANNMatcher(trees=trees, checks=checks),
-#             feature_match_filter=mycv.RANSACFilter(min_matches=12, reproj_thresh=reproj),
-#             transformation_threshold=thresh
-#         )
-
-#         estimated_transformations = [ground_truth_transformations[0]]
-
-#         for i, (left, right) in enumerate(zip(left_images, right_images), start=1):
-#             if i >= 200: break
-#             input_frame = VisionInputFrame(left, right, timestamp=image_timestamps[i])
-#             rel = odometry_calculator.calculate_relative_odometry_homogenous(input_frame, camera_frame=False)
-#             estimated_transformations.append(estimated_transformations[-1] @ rel)
-
-#         pos_res, rot_res, _ = get_delta_residuals(estimated_transformations, ground_truth_transformations[:300])
-#         score = compute_score(pos_res, rot_res)
-#         return score, config_key
-
-#     except Exception as e:
-#         print(f"Failed config: {config_key} | Error: {e}")
-#         return float('inf'), config_key
-
-# def local_gradient_descent(start_config, extractor_class, steps=3):
-#     global best_score, best_config, searched_configs
-#     feat_name, n_feat, trees, checks, reproj, thresh = start_config
-
-#     for step in range(steps):
-#         best_score = 1e6
-#         feature_extractors = [(feat_name, extractor_class)]
-
-#         n_features_vals = get_search_ranges(n_feat, 500, 500, 3000)
-#         trees_vals = get_search_ranges(trees, 1, 2, 16)
-#         checks_vals = get_search_ranges(checks, 10, 10, 300)
-#         reproj_vals = get_search_ranges(reproj, 0.1, 0.1, 3.0)
-#         thresh_vals = get_search_ranges(thresh, 0.01, 0.01, 0.15)
-
-#         print(f"\n--- Local Gradient Step {step+1} for {start_config} ---")
-
-#         all_configs = [
-#             ((feat_name, n_feat_i, trees_i, checks_i, reproj_i, thresh_i), feat_class)
-#             for (feat_name, feat_class), n_feat_i, trees_i, checks_i, reproj_i, thresh_i in product(
-#                 feature_extractors, n_features_vals, trees_vals, checks_vals, reproj_vals, thresh_vals)
-#             if (feat_name, n_feat_i, trees_i, checks_i, reproj_i, thresh_i) not in searched_configs
-#         ]
-
-#         for config_key, _ in all_configs:
-#             searched_configs.add(config_key)
-
-#         with Pool(processes=min(16, cpu_count())) as pool:
-#             results = pool.map(process_config, all_configs)
-
-#         for score, config_key in results:
-#             if score < best_score:
-#                 best_score = score
-#                 best_config = config_key
-#                 print(f"New best score: {score:.4f} | Config: {best_config}")
-#             else:
-#                 logging.info(f"Score: {score:.4f} | Config: {config_key}")
-
-#         # Use the best from this round as new center
-#         if best_config:
-#             _, n_feat, trees, checks, reproj, thresh = best_config
-
-# # Start from two known good configurations
-# start_configs = [
-#     ('SIFT', 2000, 8, 150, 1.5, 0.05),
-#     ('SIFT', 1000, 4, 50, 1.5, 0.05)
-# ]
-
-# if __name__ == "__main__":
-#     for start_config in start_configs:
-#         best_score = float("inf")
-#         extractor_class = next(c for n, c in feature_extractors if n == start_config[0])
-#         local_gradient_descent(start_config, extractor_class, steps=3)
-
-#     print("\nBest Overall Config:")
-#     print(best_config)
-
 
 odometry_calculator = mycv.VisionRelativeOdometryCalculator(initial_camera_input=initial_frame,
                                               feature_extractor=mycv.AKAZEFeatureExtractor(n_features=1000),
@@ -568,17 +446,44 @@ ax6.legend()
 plt.show(block=False)
 
 #Plot distributions of residuals x, y, z, rotx, roty, rotz
-fig4, axs = plt.subplots(2, 3, figsize=(15, 10))
-axs[0, 0].hist(position_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[0, 0].set_title('Position Residuals X')
-axs[0, 1].hist(position_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[0, 1].set_title('Position Residuals Y')
-axs[0, 2].hist(position_residuals[:, 2], bins=50, color='b', alpha=0.7)
-axs[1, 0].hist(rotation_residuals[:, 0], bins=50, color='r', alpha=0.7)
-axs[1, 0].set_title('Rotation Residuals X')
-axs[1, 1].hist(rotation_residuals[:, 1], bins=50, color='g', alpha=0.7)
-axs[1, 1].set_title('Rotation Residuals Y')
-axs[1, 2].hist(rotation_residuals[:, 2], bins=50, color='b', alpha=0.7)
-fig4.suptitle('Residuals Distributions')
-plt.tight_layout()
+labels = ['$x$', '$y$', '$z$', '$\\theta_x$', '$\\theta_y$', '$\\theta_z$']
+colors = ['r', 'g', 'b']
+data = [position_residuals, rotation_residuals]
+units = ['[m]', '[mrad]']
+
+plt.rcParams.update({
+    'font.size': 12,
+    'axes.titlesize': 12,
+    'axes.labelsize': 11,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'figure.titlesize': 14
+})
+
+
+fig4, axs = plt.subplots(2, 3, figsize=(6, 4), dpi=300)
+
+for i in range(2):
+    for j in range(3):
+        axs[i, j].hist(data[i][:, j], bins=50, color=colors[j], alpha=0.7)
+        axs[i, j].set_title(labels[i * 3 + j])
+        axs[i, j].set_xlabel(f'Error {units[i]}')
+        axs[i, j].set_ylabel('Frequency')
+        if i == 1:
+            axs[i, j].set_xticklabels([f'{tick * 1000:.0f}' for tick in axs[i, j].get_xticks()])
+fig4.tight_layout(pad=1.5)  # Increase padding between plots
 plt.show()
+
+def calculate_covariance(position_res, rotation_res):
+    cov_pr = np.cov(np.vstack([position_res.T, rotation_res.T]))
+    return cov_pr
+
+
+covariance_matrix = calculate_covariance(position_residuals, rotation_residuals)
+print("\nCovariance Matrix:")   
+print(covariance_matrix)
+
+for i in range(6):
+    for j in range(6):
+        print(f"{covariance_matrix[i, j]:.5f},", end="\t")
+    print("\n")
