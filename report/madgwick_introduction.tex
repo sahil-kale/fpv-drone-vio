@@ -1,10 +1,10 @@
 \documentclass[bare_jrnl_transmag]{subfiles}
 \begin{document}
 \subsection{Madgwick Filter Background}
-The Madgwick filter is an orientation filter that uses quaternions to describe the orientation from a fixed body frame to a moving inertial frame \cite{ahrs_madgwick}. As a result of the algorithms using quaternions, it does not suffer from the problems presented orientation representation as Euler angles, such as gimbal lock. The equations of the filter (taken from \cite{ahrs_madgwick}) are restated below:
+The Madgwick filter is an orientation filter that uses quaternions to describe the orientation from a fixed body frame to a moving inertial frame \cite{ahrs_madgwick}. As a result of the algorithms using quaternions to represent the pose of the drone, it does not suffer from known drawbacks of using euler angles as a pose representation (such as gimbal lock).
 
 \subsubsection{Gyroscopic Integration Step}
-The first step of the Madgwick filter (alongside a number of other inertial navigation filters) is to integrate the gyroscopic measurements (angular rate about the body frame axes, represented by $[\omega_x \ \omega_y \ \omega_z]$) to get a new estimation of the inertial frame's orientation, shown in Equation \ref{eq:madgwick_gyro_integration}.
+The first step of the Madgwick filter is to integrate the gyroscopic measurements (angular rate about the body frame axes, represented by $[\omega_x \ \omega_y \ \omega_z]$) to get a new estimation of the inertial frame's orientation, shown in Equation \ref{eq:madgwick_gyro_integration}.
 
 \begin{equation}
     q_{k} = q_{k-1} + \frac{q_{k-1} \otimes [0 \ \omega_x \ \omega_y \ \omega_z] \Delta t}{2}
@@ -12,7 +12,7 @@ The first step of the Madgwick filter (alongside a number of other inertial navi
 \end{equation}
 
 \subsubsection{Accelerometer Correction Step}
-The second step of the Madgwick filter is to correct the orientation estimate using the accelerometer measurements. The accelerometer measurements are represented in the body frame as $[a_x \ a_y \ a_z]$, with the goal of the correction step to align the accelerometer measurements, converted to the world frame, with the gravity vector in the world frame, represented as $[0 \ 0 \ g]$ (though normalized to $[0 \ 0 \ 1]$ to simplify the equations - note the gravity vector pointing up is due to how the sensor frame is oriented). From this, an optimization problem can be formed to minimize the difference between the two vectors, shown in Equations \ref{eq:madgwick_optimization_function} and \ref{eq:madgwick_optimization_function_jacobian}.
+The second step of the Madgwick filter is to correct the orientation estimate using the accelerometer measurements. The accelerometer measurements are represented in the body frame as $[a_x \ a_y \ a_z]$. The goal of the correction step is to align the accelerometer measurements in the world frame with the gravity vector in the world frame, represented as $[0 \ 0 \ g]$. The gravity vector is normalized to $[0 \ 0 \ 1]$ to simplify the equations. Note the gravity vector pointing "up" is due to how the sensor frame measurements are oriented. From this, an optimization problem can be formed to minimize the difference between the two vectors, shown in Equations \ref{eq:madgwick_optimization_function} and \ref{eq:madgwick_optimization_function_jacobian}.
 
 \begin{equation}
 f_g(q, s_a) =
@@ -34,7 +34,7 @@ f_g(q, s_a) =
     \label{eq:madgwick_optimization_function_jacobian}
 \end{equation}
 
-The gradient of the optimization function is calculated with the following Equation (\ref{eq:madgwick_optimization_function_gradient}):
+The gradient of the optimization function is calculated with the following Equation \ref{eq:madgwick_optimization_function_gradient}:
 \begin{equation}
     \nabla f_g(q, s_a) = J_g(q)^T f_g(q, s_a)
     \label{eq:madgwick_optimization_function_gradient}
